@@ -88,3 +88,4 @@ results/run_2026-05-04T12-00-00/
 4. Trace everything. Inputs, outputs, tool calls, sub-agent hops, latencies, retries, judge prompts and verdicts.
 5. Version everything. Every artifact records SHA-256 hashes of dataset, prompts, model IDs, and config.
 6. Reports are actionable. Each finding maps to a fix, an owner cue, and a severity.
+
