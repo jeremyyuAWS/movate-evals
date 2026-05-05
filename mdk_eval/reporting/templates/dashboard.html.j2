@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ cfg.client_name }} — Quality Dashboard</title>
+<style>
+  :root {
+    --movate-ink:        #26282b;
+    --movate-plum:       #4f3144;
+    --movate-plum-soft:  #6e4f63;
+    --movate-plum-tint:  #f6f2f5;
+    --movate-line:       #e6dde3;
+    --movate-magenta:    #ED1E79;
+    --movate-pink:       #FF4F9A;
+    --movate-coral:      #FF5542;
+    --movate-orange:     #F15A24;
+    --movate-amber:      #F7941D;
+    --movate-yellow:     #FFD200;
+    --pass:  #1e7e34;
+    --watch: var(--movate-amber);
+    --fail:  var(--movate-magenta);
+    --pass-tint:  #e6f4ea;
+    --watch-tint: #fff5e0;
+    --fail-tint:  #fde4ee;
+    --neutral-tint: var(--movate-plum-tint);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    color: var(--movate-ink);
+    background: #f9f6f8;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 24px 32px 64px;
+  }
+  /* ---------- Brand header ---------- */
+  header.brand {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0 18px;
+    position: relative;
+  }
+  header.brand::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px;
+    background: linear-gradient(
+      90deg,
+      var(--movate-magenta) 0%, var(--movate-coral) 45%,
+      var(--movate-orange) 75%, var(--movate-amber) 100%
+    );
+    border-radius: 2px;
+  }
+  .brand-mark {
+    display: flex; align-items: center; gap: 14px;
+  }
+  /* Movate wordmark — preserves the brand's natural ~1.9:1 aspect ratio. */
+  .brand-mark .logo {
+    height: 38px; width: auto; max-width: 130px;
+    object-fit: contain;
+    display: block;
+  }
+  .brand-mark .title { font-weight: 800; font-size: 17px; }
+  .brand-mark .subtitle { font-size: 12px; color: var(--movate-plum-soft); }
+  .meta { text-align: right; font-size: 11.5px; color: var(--movate-plum-soft); }
+
+  /* ---------- Hero ---------- */
+  .hero {
+    margin-top: 22px;
+    background: linear-gradient(135deg, var(--movate-plum) 0%, #2f1c28 100%);
+    color: white;
+    padding: 32px 36px;
+    border-radius: 14px;
+    display: grid;
+    grid-template-columns: 1.6fr 1fr;
+    gap: 28px;
+    box-shadow: 0 6px 28px rgba(79, 49, 68, 0.18);
+  }
+  .hero h1 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+  }
+  .hero .verdict {
+    font-size: 22px; font-weight: 700; line-height: 1.35;
+    margin-bottom: 14px;
+  }
+  .hero .narrative {
+    font-size: 14.5px;
+    color: rgba(255, 255, 255, 0.88);
+    max-width: 56ch;
+  }
+  .hero .badge-row { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .hero .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border-radius: 999px;
+    font-size: 11.5px; font-weight: 700; letter-spacing: 0.4px;
+  }
+  .hero .badge.status {
+    color: var(--movate-ink);
+    background: white;
+  }
+  .hero .badge.status .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+  .hero .badge.muted {
+    color: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+  }
+
+  .hero-score {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .score-ring {
+    width: 170px; height: 170px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: conic-gradient(
+      {{ readiness_color }} calc({{ (report.overall_score / 100.0) * 360 }}deg),
+      rgba(255, 255, 255, 0.16) 0
+    );
+    position: relative;
+  }
+  .score-ring .inner {
+    width: 138px; height: 138px; border-radius: 50%;
+    background: white;
+    display: grid; place-items: center; text-align: center;
+    color: var(--movate-ink);
+  }
+  .score-ring .num { font-size: 44px; font-weight: 800; line-height: 1; }
+  .score-ring .den { font-size: 12px; color: var(--movate-plum-soft); margin-top: 4px; }
+  .hero-score .label {
+    margin-top: 14px;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px;
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  /* ---------- KPI tiles ---------- */
+  .section-head {
+    margin: 36px 0 14px;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px;
+    color: var(--movate-plum-soft);
+    font-weight: 700;
+  }
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .kpi {
+    background: white;
+    border-radius: 12px;
+    padding: 20px 22px;
+    border: 1px solid var(--movate-line);
+    border-top: 4px solid var(--neutral-tint);
+    box-shadow: 0 2px 6px rgba(79, 49, 68, 0.04);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .kpi.pass  { border-top-color: var(--pass); }
+  .kpi.watch { border-top-color: var(--watch); }
+  .kpi.fail  { border-top-color: var(--fail); }
+
+  .kpi .kpi-label {
+    font-size: 12px; color: var(--movate-plum-soft);
+    font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px;
+  }
+  .kpi .kpi-value-row {
+    display: flex; align-items: baseline; gap: 6px;
+    margin-top: 2px;
+  }
+  .kpi .kpi-value {
+    font-size: 38px; font-weight: 800;
+    color: var(--movate-ink);
+    line-height: 1;
+  }
+  .kpi .kpi-suffix {
+    font-size: 13px; color: var(--movate-plum-soft); font-weight: 600;
+  }
+  .kpi .kpi-bar {
+    margin-top: 4px;
+    height: 6px; border-radius: 3px;
+    background: var(--movate-line);
+    overflow: hidden;
+  }
+  .kpi .kpi-bar-fill {
+    height: 100%; border-radius: 3px;
+  }
+  .kpi.pass  .kpi-bar-fill { background: var(--pass); }
+  .kpi.watch .kpi-bar-fill { background: var(--watch); }
+  .kpi.fail  .kpi-bar-fill { background: var(--fail); }
+  .kpi .kpi-explanation {
+    font-size: 12.5px; color: var(--movate-ink);
+    margin-top: 6px;
+  }
+  .kpi .kpi-note {
+    font-size: 11px; color: var(--movate-plum-soft);
+    font-style: italic;
+    margin-top: 4px;
+  }
+
+  /* ---------- Scorecard chart card ---------- */
+  .chart-card {
+    background: white;
+    border: 1px solid var(--movate-line);
+    border-radius: 12px;
+    padding: 22px 24px;
+  }
+  .chart-card h3 {
+    margin: 0 0 4px; font-size: 16px; color: var(--movate-plum); font-weight: 700;
+  }
+  .chart-card .chart-sub {
+    color: var(--movate-plum-soft);
+    font-size: 12.5px;
+    margin-bottom: 14px;
+  }
+
+  /* ---------- Working / Not working ---------- */
+  .ww-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  .ww-card {
+    background: white;
+    border: 1px solid var(--movate-line);
+    border-radius: 12px;
+    padding: 20px 22px;
+  }
+  .ww-card h3 {
+    margin: 0 0 12px; font-size: 14px;
+    text-transform: uppercase; letter-spacing: 0.8px;
+  }
+  .ww-card.working h3  { color: var(--pass); }
+  .ww-card.attention h3 { color: var(--fail); }
+  .ww-card ul { margin: 0; padding-left: 18px; }
+  .ww-card li { margin: 6px 0; font-size: 13px; }
+  .ww-card .empty {
+    color: var(--movate-plum-soft); font-style: italic; font-size: 13px;
+  }
+
+  /* ---------- Top fixes ---------- */
+  .fixes {
+    background: white;
+    border: 1px solid var(--movate-line);
+    border-radius: 12px;
+    padding: 20px 22px;
+  }
+  .fix-row {
+    display: grid;
+    grid-template-columns: 26px 1fr;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--movate-line);
+    align-items: start;
+  }
+  .fix-row:last-child { border-bottom: none; }
+  .fix-row .num {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--movate-magenta); color: white;
+    display: grid; place-items: center;
+    font-weight: 700; font-size: 13px;
+  }
+  .fix-row .body .title { font-weight: 700; color: var(--movate-ink); font-size: 14px; }
+  .fix-row .body .desc {
+    color: var(--movate-plum-soft); font-size: 12.5px; margin-top: 3px;
+  }
+  .fix-row .body .meta {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--movate-plum-soft);
+  }
+  .fix-row .body .meta .pill {
+    display: inline-block;
+    padding: 1px 8px; border-radius: 999px;
+    background: var(--movate-plum-tint);
+    color: var(--movate-plum);
+    font-weight: 600;
+    margin-right: 4px;
+  }
+
+  /* ---------- Glossary ---------- */
+  .glossary {
+    background: white;
+    border: 1px solid var(--movate-line);
+    border-radius: 12px;
+    padding: 20px 24px;
+  }
+  .glossary dl { margin: 0; display: grid; grid-template-columns: 220px 1fr; column-gap: 18px; row-gap: 12px; }
+  .glossary dt { font-weight: 700; color: var(--movate-plum); font-size: 13px; }
+  .glossary dd { margin: 0; color: var(--movate-ink); font-size: 13px; }
+
+  /* ---------- Footer ---------- */
+  footer {
+    margin-top: 36px; text-align: center;
+    color: var(--movate-plum-soft); font-size: 11px;
+  }
+  footer a { color: var(--movate-magenta); text-decoration: none; }
+
+  @media print {
+    body { background: white; }
+    .hero { box-shadow: none; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="brand">
+    <div class="brand-mark">
+      <img class="logo" src="{{ movate_logo_data_uri }}" alt="Movate">
+      <div>
+        <div class="title">Agent Assurance — Quality Dashboard</div>
+        <div class="subtitle">{{ cfg.client_name }}</div>
+      </div>
+    </div>
+    <div class="meta">
+      <div><strong>Run:</strong> {{ report.manifest.run_id }}</div>
+      <div><strong>Generated:</strong> {{ report.manifest.ended_at or report.manifest.started_at }}</div>
+      <div><strong>Target:</strong> {{ report.manifest.target }}</div>
+    </div>
+  </header>
+
+  {# -------- Hero -------- #}
+  <section class="hero">
+    <div>
+      <h1>Verdict</h1>
+      <div class="verdict">{{ report.headline }}</div>
+      <div class="narrative">{{ narrative }}</div>
+      <div class="badge-row">
+        <span class="badge status">
+          <span class="dot" style="background: {{ readiness_color }};"></span>
+          {{ report.status.value | replace('_', ' ') | upper }}
+        </span>
+        <span class="badge muted">Confidence {{ '%.0f' | format(report.confidence * 100) }}%</span>
+        <span class="badge muted">{{ passing_scenarios }}/{{ total_scenarios }} scenarios passing</span>
+        <span class="badge muted">{{ report.manifest.runs_per_scenario }} run(s) per scenario</span>
+      </div>
+    </div>
+    <div class="hero-score">
+      <div class="score-ring">
+        <div class="inner">
+          <div class="num">{{ report.overall_score | round | int }}</div>
+          <div class="den">/ 100</div>
+        </div>
+      </div>
+      <div class="label">Production-Readiness Score</div>
+    </div>
+  </section>
+
+  {# -------- KPI tiles -------- #}
+  <div class="section-head">Key Metrics</div>
+  <div class="kpi-grid">
+    {% for k in kpis %}
+      <div class="kpi {{ k.band }}">
+        <div class="kpi-label">{{ k.label }}</div>
+        <div class="kpi-value-row">
+          <div class="kpi-value">{{ kpi_display(k) }}</div>
+          <div class="kpi-suffix">{{ kpi_suffix(k) }}</div>
+        </div>
+        <div class="kpi-bar">
+          <div class="kpi-bar-fill" style="width: {{ kpi_bar_pct(k) }}%;"></div>
+        </div>
+        <div class="kpi-explanation">{{ k.short }}</div>
+        {% if k.note %}<div class="kpi-note">{{ k.note }}</div>{% endif %}
+      </div>
+    {% endfor %}
+  </div>
+
+  {# -------- Scorecard chart -------- #}
+  {% if scorecard_svg %}
+    <div class="section-head">Reliability Scorecard</div>
+    <div class="chart-card">
+      <h3>Performance across all 10 categories</h3>
+      <div class="chart-sub">
+        Each bar is one of the categories that feeds into the composite score. The dashed line at 80 marks the pass threshold.
+      </div>
+      {{ scorecard_svg | safe }}
+    </div>
+  {% endif %}
+
+  {# -------- What's working / Needs attention -------- #}
+  <div class="section-head">At a glance</div>
+  <div class="ww-grid">
+    <div class="ww-card working">
+      <h3>What's working</h3>
+      {% if working %}
+        <ul>
+          {% for k in working %}
+            <li><strong>{{ k.label }}</strong> — {{ kpi_display(k) }}{{ kpi_suffix(k) }}</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="empty">No categories are currently passing the bar.</div>
+      {% endif %}
+    </div>
+    <div class="ww-card attention">
+      <h3>Needs attention</h3>
+      {% if not_working %}
+        <ul>
+          {% for k in not_working %}
+            <li><strong>{{ k.label }}</strong> — {{ kpi_display(k) }}{{ kpi_suffix(k) }}{% if k.note %} ({{ k.note }}){% endif %}</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="empty">All metrics are in the pass band. 🎉</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# -------- Top fixes -------- #}
+  {% if report.failure_clusters %}
+    <div class="section-head">Top {{ report.failure_clusters[:3] | length }} things to fix</div>
+    <div class="fixes">
+      {% for c in report.failure_clusters[:3] %}
+        <div class="fix-row">
+          <div class="num">{{ loop.index }}</div>
+          <div class="body">
+            <div class="title">{{ c.label or c.failure_class | replace('_', ' ') | title }}</div>
+            <div class="desc">{{ c.suggested_fix }}</div>
+            <div class="meta">
+              <span class="pill">{{ c.severity }}</span>
+              <span class="pill">{{ c.count }} occurrence{{ 's' if c.count != 1 else '' }}</span>
+              {% if c.example_scenario_ids %}
+                Affected scenarios: {{ c.example_scenario_ids[:3] | join(', ') }}{% if c.example_scenario_ids | length > 3 %} (+ {{ c.example_scenario_ids | length - 3 }} more){% endif %}
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {# -------- Glossary -------- #}
+  <div class="section-head">What these metrics mean</div>
+  <div class="glossary">
+    <dl>
+      {% for g in glossary %}
+        <dt>{{ g.term }}</dt>
+        <dd>{{ g.definition }}</dd>
+      {% endfor %}
+    </dl>
+  </div>
+
+  <footer>
+    {{ cfg.confidentiality_footer }}<br>
+    For engineering-detail report, see <a href="report.html">report.html</a>.
+  </footer>
+</div>
+</body>
+</html>

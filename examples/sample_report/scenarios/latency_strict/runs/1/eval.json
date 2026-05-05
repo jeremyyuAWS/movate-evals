@@ -1,0 +1,180 @@
+{
+  "scenario_id": "latency_strict",
+  "run_index": 1,
+  "trace_id": "latency_strict::1",
+  "adapter": {
+    "ok": true,
+    "output_text": "Per the available context: Refunds are issued within 14 business days for orders under $500.. Direct answer to your question: see the tool result.",
+    "output_json": {
+      "answer": "Per the available context: Refunds are issued within 14 business days for orders under $500.. Direct answer to your question: see the tool result.",
+      "sources": [
+        "Refunds are issued within 14 business days for orders under $500."
+      ]
+    },
+    "trace": {
+      "started_at": "2026-05-05T04:52:29.020420Z",
+      "ended_at": "2026-05-05T04:52:31.484929Z",
+      "latency_ms": 2464,
+      "retries": 0,
+      "tool_calls": [
+        {
+          "name": "kb_search",
+          "args": {
+            "q": "Summarize the refund policy in one sentence."
+          },
+          "result": {
+            "hits": [
+              "Refunds are issued within 14 business days for orders under $500."
+            ]
+          },
+          "started_at": "2026-05-05T04:52:31.410058Z",
+          "ended_at": "2026-05-05T04:52:31.484776Z",
+          "error": null
+        }
+      ],
+      "sub_agents": [
+        {
+          "agent": "formatter",
+          "input": "Per the available context: Refunds are issued within 14 business days for orders under $500.. Direct answer to your question: see the tool result.",
+          "output": "Per the available context: Refunds are issued within 14 business days for orders under $500.. Direct answer to your question: see the tool result.",
+          "latency_ms": 8
+        }
+      ],
+      "workflow_path": [
+        "intent_classifier",
+        "tool:kb_search",
+        "responder",
+        "responder"
+      ],
+      "raw_request": {
+        "prompt": "Summarize the refund policy in one sentence.",
+        "trigger": "slow"
+      },
+      "raw_response": {
+        "answer": "Per the available context: Refunds are issued within 14 business days for orders under $500.. Direct answer to your question: see the tool result.",
+        "sources": [
+          "Refunds are issued within 14 business days for orders under $500."
+        ]
+      },
+      "extra": {}
+    },
+    "error": null
+  },
+  "deterministic": [
+    {
+      "name": "adapter_ok",
+      "passed": true,
+      "score": 1.0,
+      "severity": "critical",
+      "reason": null,
+      "details": {}
+    },
+    {
+      "name": "schema",
+      "passed": true,
+      "score": 1.0,
+      "severity": "low",
+      "reason": "no schema configured",
+      "details": {}
+    },
+    {
+      "name": "required_fields",
+      "passed": true,
+      "score": 1.0,
+      "severity": "high",
+      "reason": null,
+      "details": {
+        "missing": []
+      }
+    },
+    {
+      "name": "forbidden_phrases",
+      "passed": true,
+      "score": 1.0,
+      "severity": "low",
+      "reason": "none defined",
+      "details": {}
+    },
+    {
+      "name": "tool_usage",
+      "passed": true,
+      "score": 1.0,
+      "severity": "high",
+      "reason": null,
+      "details": {
+        "missing": [],
+        "arg_mismatches": [],
+        "called": [
+          "kb_search"
+        ]
+      }
+    },
+    {
+      "name": "workflow_adherence",
+      "passed": true,
+      "score": 1.0,
+      "severity": "medium",
+      "reason": null,
+      "details": {
+        "visited": [
+          "intent_classifier",
+          "tool:kb_search",
+          "responder",
+          "responder"
+        ]
+      }
+    },
+    {
+      "name": "latency",
+      "passed": false,
+      "score": 0.0,
+      "severity": "medium",
+      "reason": "latency 2464ms over budget 1200ms (+1264ms)",
+      "details": {
+        "latency_ms": 2464,
+        "budget_ms": 1200
+      }
+    },
+    {
+      "name": "retries",
+      "passed": true,
+      "score": 1.0,
+      "severity": "medium",
+      "reason": null,
+      "details": {
+        "retries": 0,
+        "cap": 0
+      }
+    }
+  ],
+  "judge_panel": [],
+  "deepeval": {},
+  "triangulations": {},
+  "category_scores": {
+    "correctness": 0.0,
+    "grounding": 0.0,
+    "completeness": 100.0,
+    "tool_usage": 100.0,
+    "workflow_adherence": 100.0,
+    "latency": 0.0,
+    "ux_tone": 0.0,
+    "safety": 100.0,
+    "consistency": 100.0,
+    "task_success": 100.0
+  },
+  "final_score": 64.23,
+  "passed": false,
+  "findings": [
+    {
+      "failure_class": "latency_issue",
+      "reason": "latency 2464ms over budget 1200ms (+1264ms)",
+      "evidence": {
+        "latency_ms": 2464,
+        "budget_ms": 1200
+      },
+      "recommendation": "Profile slowest hop; cache retrieval; right-size models per node.",
+      "severity": "medium"
+    }
+  ],
+  "duration_ms": 2464
+}

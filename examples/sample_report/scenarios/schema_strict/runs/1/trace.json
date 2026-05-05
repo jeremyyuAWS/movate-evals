@@ -1,0 +1,37 @@
+{
+  "started_at": "2026-05-05T04:52:29.379161Z",
+  "ended_at": "2026-05-05T04:52:29.712040Z",
+  "latency_ms": 332,
+  "retries": 0,
+  "tool_calls": [
+    {
+      "name": "kb_search",
+      "args": {
+        "q": "List the supported file formats."
+      },
+      "result": {
+        "hits": [
+          "Supported file formats: PDF, DOCX, PNG, JPG."
+        ]
+      },
+      "started_at": "2026-05-05T04:52:29.652970Z",
+      "ended_at": "2026-05-05T04:52:29.712013Z",
+      "error": null
+    }
+  ],
+  "sub_agents": [],
+  "workflow_path": [
+    "intent_classifier",
+    "tool:kb_search",
+    "responder",
+    "responder"
+  ],
+  "raw_request": {
+    "prompt": "List the supported file formats.",
+    "trigger": "schema_break"
+  },
+  "raw_response": {
+    "wrong_field": "answer=ok"
+  },
+  "extra": {}
+}

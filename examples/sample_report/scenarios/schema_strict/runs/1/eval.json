@@ -1,0 +1,198 @@
+{
+  "scenario_id": "schema_strict",
+  "run_index": 1,
+  "trace_id": "schema_strict::1",
+  "adapter": {
+    "ok": true,
+    "output_text": "answer=ok",
+    "output_json": {
+      "wrong_field": "answer=ok"
+    },
+    "trace": {
+      "started_at": "2026-05-05T04:52:29.379161Z",
+      "ended_at": "2026-05-05T04:52:29.712040Z",
+      "latency_ms": 332,
+      "retries": 0,
+      "tool_calls": [
+        {
+          "name": "kb_search",
+          "args": {
+            "q": "List the supported file formats."
+          },
+          "result": {
+            "hits": [
+              "Supported file formats: PDF, DOCX, PNG, JPG."
+            ]
+          },
+          "started_at": "2026-05-05T04:52:29.652970Z",
+          "ended_at": "2026-05-05T04:52:29.712013Z",
+          "error": null
+        }
+      ],
+      "sub_agents": [],
+      "workflow_path": [
+        "intent_classifier",
+        "tool:kb_search",
+        "responder",
+        "responder"
+      ],
+      "raw_request": {
+        "prompt": "List the supported file formats.",
+        "trigger": "schema_break"
+      },
+      "raw_response": {
+        "wrong_field": "answer=ok"
+      },
+      "extra": {}
+    },
+    "error": null
+  },
+  "deterministic": [
+    {
+      "name": "adapter_ok",
+      "passed": true,
+      "score": 1.0,
+      "severity": "critical",
+      "reason": null,
+      "details": {}
+    },
+    {
+      "name": "schema",
+      "passed": false,
+      "score": 0.0,
+      "severity": "high",
+      "reason": "2 schema violation(s)",
+      "details": {
+        "errors": [
+          {
+            "path": [],
+            "msg": "'answer' is a required property"
+          },
+          {
+            "path": [],
+            "msg": "'sources' is a required property"
+          }
+        ]
+      }
+    },
+    {
+      "name": "required_fields",
+      "passed": false,
+      "score": 0.0,
+      "severity": "high",
+      "reason": "missing: ['answer']",
+      "details": {
+        "missing": [
+          "answer"
+        ]
+      }
+    },
+    {
+      "name": "forbidden_phrases",
+      "passed": true,
+      "score": 1.0,
+      "severity": "low",
+      "reason": "none defined",
+      "details": {}
+    },
+    {
+      "name": "tool_usage",
+      "passed": true,
+      "score": 1.0,
+      "severity": "high",
+      "reason": null,
+      "details": {
+        "missing": [],
+        "arg_mismatches": [],
+        "called": [
+          "kb_search"
+        ]
+      }
+    },
+    {
+      "name": "workflow_adherence",
+      "passed": true,
+      "score": 1.0,
+      "severity": "medium",
+      "reason": null,
+      "details": {
+        "visited": [
+          "intent_classifier",
+          "tool:kb_search",
+          "responder",
+          "responder"
+        ]
+      }
+    },
+    {
+      "name": "latency",
+      "passed": true,
+      "score": 1.0,
+      "severity": "medium",
+      "reason": null,
+      "details": {
+        "latency_ms": 332,
+        "budget_ms": 1500
+      }
+    },
+    {
+      "name": "retries",
+      "passed": true,
+      "score": 1.0,
+      "severity": "low",
+      "reason": "no cap",
+      "details": {
+        "retries": 0
+      }
+    }
+  ],
+  "judge_panel": [],
+  "deepeval": {},
+  "triangulations": {},
+  "category_scores": {
+    "correctness": 0.0,
+    "grounding": 0.0,
+    "completeness": 0.0,
+    "tool_usage": 100.0,
+    "workflow_adherence": 100.0,
+    "latency": 100.0,
+    "ux_tone": 0.0,
+    "safety": 100.0,
+    "consistency": 100.0,
+    "task_success": 40.0
+  },
+  "final_score": 51.22,
+  "passed": false,
+  "findings": [
+    {
+      "failure_class": "schema_violation",
+      "reason": "2 schema violation(s)",
+      "evidence": {
+        "errors": [
+          {
+            "path": [],
+            "msg": "'answer' is a required property"
+          },
+          {
+            "path": [],
+            "msg": "'sources' is a required property"
+          }
+        ]
+      },
+      "recommendation": "Add response-format constraints (function calling / JSON mode) and a server-side validator.",
+      "severity": "high"
+    },
+    {
+      "failure_class": "missing_step",
+      "reason": "missing: ['answer']",
+      "evidence": {
+        "missing": [
+          "answer"
+        ]
+      },
+      "recommendation": "Enforce required-field schema in the system prompt and validate before returning.",
+      "severity": "high"
+    }
+  ],
+  "duration_ms": 333
+}

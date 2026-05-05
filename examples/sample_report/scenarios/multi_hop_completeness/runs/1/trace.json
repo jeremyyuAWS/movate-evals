@@ -1,0 +1,47 @@
+{
+  "started_at": "2026-05-05T04:52:28.590363Z",
+  "ended_at": "2026-05-05T04:52:28.723958Z",
+  "latency_ms": 133,
+  "retries": 0,
+  "tool_calls": [
+    {
+      "name": "order_status",
+      "args": {
+        "q": "For order #A-99812, what is the status AND the estimated delivery date?"
+      },
+      "result": {
+        "hits": [
+          "The order_status tool returns status and ETA for any order ID."
+        ]
+      },
+      "started_at": "2026-05-05T04:52:28.690232Z",
+      "ended_at": "2026-05-05T04:52:28.723933Z",
+      "error": null
+    }
+  ],
+  "sub_agents": [
+    {
+      "agent": "formatter",
+      "input": "Per the available context: The order_status tool returns status and ETA for any order ID.. Direct answer to your question: see the tool result.",
+      "output": "Per the available context: The order_status tool returns status and ETA for any order ID.. Direct answer to your question: see the tool result.",
+      "latency_ms": 8
+    }
+  ],
+  "workflow_path": [
+    "intent_classifier",
+    "tool:order_status",
+    "responder",
+    "responder"
+  ],
+  "raw_request": {
+    "prompt": "For order #A-99812, what is the status AND the estimated delivery date?",
+    "trigger": ""
+  },
+  "raw_response": {
+    "answer": "Per the available context: The order_status tool returns status and ETA for any order ID.. Direct answer to your question: see the tool result.",
+    "sources": [
+      "The order_status tool returns status and ETA for any order ID."
+    ]
+  },
+  "extra": {}
+}

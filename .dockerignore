@@ -1,0 +1,35 @@
+# Don't bake test/build/IDE/local-output artifacts into the image.
+.venv/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+
+# Local results and tmp scratch — never belong in a container.
+results/
+tmp_*/
+.mdk-eval/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Git + CI metadata
+.git/
+.github/
+.gitignore
+
+# Documentation that doesn't need to be in the runtime image
+PRD.md
+BOLT_DASHBOARD_SPEC.md
+DEPLOY.md
+
+# Secrets and env files — extra paranoia; .env should already be in .gitignore
+.env
+.env.*
+!.env.example
+
+# Sample reports — large, regenerable
+examples/sample_report/

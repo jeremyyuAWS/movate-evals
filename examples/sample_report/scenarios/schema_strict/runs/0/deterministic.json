@@ -1,0 +1,99 @@
+[
+  {
+    "name": "adapter_ok",
+    "passed": true,
+    "score": 1.0,
+    "severity": "critical",
+    "reason": null,
+    "details": {}
+  },
+  {
+    "name": "schema",
+    "passed": false,
+    "score": 0.0,
+    "severity": "high",
+    "reason": "2 schema violation(s)",
+    "details": {
+      "errors": [
+        {
+          "path": [],
+          "msg": "'answer' is a required property"
+        },
+        {
+          "path": [],
+          "msg": "'sources' is a required property"
+        }
+      ]
+    }
+  },
+  {
+    "name": "required_fields",
+    "passed": false,
+    "score": 0.0,
+    "severity": "high",
+    "reason": "missing: ['answer']",
+    "details": {
+      "missing": [
+        "answer"
+      ]
+    }
+  },
+  {
+    "name": "forbidden_phrases",
+    "passed": true,
+    "score": 1.0,
+    "severity": "low",
+    "reason": "none defined",
+    "details": {}
+  },
+  {
+    "name": "tool_usage",
+    "passed": true,
+    "score": 1.0,
+    "severity": "high",
+    "reason": null,
+    "details": {
+      "missing": [],
+      "arg_mismatches": [],
+      "called": [
+        "kb_search"
+      ]
+    }
+  },
+  {
+    "name": "workflow_adherence",
+    "passed": true,
+    "score": 1.0,
+    "severity": "medium",
+    "reason": null,
+    "details": {
+      "visited": [
+        "intent_classifier",
+        "tool:kb_search",
+        "responder",
+        "responder"
+      ]
+    }
+  },
+  {
+    "name": "latency",
+    "passed": true,
+    "score": 1.0,
+    "severity": "medium",
+    "reason": null,
+    "details": {
+      "latency_ms": 253,
+      "budget_ms": 1500
+    }
+  },
+  {
+    "name": "retries",
+    "passed": true,
+    "score": 1.0,
+    "severity": "low",
+    "reason": "no cap",
+    "details": {
+      "retries": 0
+    }
+  }
+]

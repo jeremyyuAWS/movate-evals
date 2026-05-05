@@ -1,0 +1,47 @@
+{
+  "started_at": "2026-05-05T04:52:29.020420Z",
+  "ended_at": "2026-05-05T04:52:31.484929Z",
+  "latency_ms": 2464,
+  "retries": 0,
+  "tool_calls": [
+    {
+      "name": "kb_search",
+      "args": {
+        "q": "Summarize the refund policy in one sentence."
+      },
+      "result": {
+        "hits": [
+          "Refunds are issued within 14 business days for orders under $500."
+        ]
+      },
+      "started_at": "2026-05-05T04:52:31.410058Z",
+      "ended_at": "2026-05-05T04:52:31.484776Z",
+      "error": null
+    }
+  ],
+  "sub_agents": [
+    {
+      "agent": "formatter",
+      "input": "Per the available context: Refunds are issued within 14 business days for orders under $500.. Direct answer to your question: see the tool result.",
+      "output": "Per the available context: Refunds are issued within 14 business days for orders under $500.. Direct answer to your question: see the tool result.",
+      "latency_ms": 8
+    }
+  ],
+  "workflow_path": [
+    "intent_classifier",
+    "tool:kb_search",
+    "responder",
+    "responder"
+  ],
+  "raw_request": {
+    "prompt": "Summarize the refund policy in one sentence.",
+    "trigger": "slow"
+  },
+  "raw_response": {
+    "answer": "Per the available context: Refunds are issued within 14 business days for orders under $500.. Direct answer to your question: see the tool result.",
+    "sources": [
+      "Refunds are issued within 14 business days for orders under $500."
+    ]
+  },
+  "extra": {}
+}

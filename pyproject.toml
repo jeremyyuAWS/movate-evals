@@ -1,0 +1,76 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mdk-eval"
+version = "0.1.0"
+description = "Movate Agent Assurance — multi-layer evaluation system for AI agent reliability and production readiness."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Proprietary - Movate" }
+authors = [{ name = "Movate" }]
+
+dependencies = [
+  "typer>=0.12",
+  "rich>=13.7",
+  "pydantic>=2.6",
+  "PyYAML>=6.0",
+  "jsonschema>=4.21",
+  "httpx>=0.27",
+  "anyio>=4.3",
+  "jinja2>=3.1",
+  "tenacity>=8.2",
+  "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+judges = [
+  "openai>=1.30",
+  "anthropic>=0.34",
+  "deepeval>=1.0.0",
+]
+langfuse = ["langfuse>=2.30"]
+pdf = ["weasyprint>=62.0"]
+langgraph = ["langgraph>=0.2"]
+viz = ["altair>=5.5", "vl-convert-python>=1.7"]
+push = ["psycopg[binary]>=3.1"]
+web = [
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.27",
+  "python-multipart>=0.0.9",
+  "psycopg[binary]>=3.1",
+]
+dev = [
+  "pytest>=8.1",
+  "pytest-asyncio>=0.23",
+  "ruff>=0.4",
+  "mypy>=1.10",
+]
+
+[project.scripts]
+mdk-eval = "mdk_eval.cli.app:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mdk_eval"]
+
+# Include non-Python files (templates, brand assets) in the wheel so they ship
+# with the installed package, not just in the source repo.
+[tool.hatch.build.targets.wheel.force-include]
+"mdk_eval/reporting/templates" = "mdk_eval/reporting/templates"
+"mdk_eval/reporting/assets"    = "mdk_eval/reporting/assets"
+"migrations"                   = "migrations"
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+# E702: semicolons-on-one-line are used intentionally for compact
+#   `table.add_column(...); table.add_column(...)` setups across the CLI.
+# E401: same context — `from rich import x, y` inline imports in CLI helpers.
+ignore = ["E702", "E401"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

@@ -1,0 +1,94 @@
+[
+  {
+    "name": "adapter_ok",
+    "passed": true,
+    "score": 1.0,
+    "severity": "critical",
+    "reason": null,
+    "details": {}
+  },
+  {
+    "name": "schema",
+    "passed": true,
+    "score": 1.0,
+    "severity": "high",
+    "reason": null,
+    "details": {}
+  },
+  {
+    "name": "required_fields",
+    "passed": false,
+    "score": 0.5,
+    "severity": "high",
+    "reason": "missing: ['sources']",
+    "details": {
+      "missing": [
+        "sources"
+      ]
+    }
+  },
+  {
+    "name": "forbidden_phrases",
+    "passed": false,
+    "score": 0.0,
+    "severity": "high",
+    "reason": "hit forbidden phrase(s): ['definitively true', 'confirmed by the CEO']",
+    "details": {
+      "hits": [
+        "definitively true",
+        "confirmed by the CEO"
+      ]
+    }
+  },
+  {
+    "name": "tool_usage",
+    "passed": true,
+    "score": 1.0,
+    "severity": "high",
+    "reason": null,
+    "details": {
+      "missing": [],
+      "arg_mismatches": [],
+      "called": [
+        "kb_search"
+      ]
+    }
+  },
+  {
+    "name": "workflow_adherence",
+    "passed": true,
+    "score": 1.0,
+    "severity": "medium",
+    "reason": null,
+    "details": {
+      "visited": [
+        "intent_classifier",
+        "tool:kb_search",
+        "responder",
+        "responder"
+      ]
+    }
+  },
+  {
+    "name": "latency",
+    "passed": true,
+    "score": 1.0,
+    "severity": "medium",
+    "reason": null,
+    "details": {
+      "latency_ms": 362,
+      "budget_ms": 1500
+    }
+  },
+  {
+    "name": "retries",
+    "passed": true,
+    "score": 1.0,
+    "severity": "medium",
+    "reason": null,
+    "details": {
+      "retries": 0,
+      "cap": 1
+    }
+  }
+]

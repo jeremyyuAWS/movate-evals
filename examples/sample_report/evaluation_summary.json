@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "methodology_version": "1.0",
+  "mdk_eval_version": "0.1.0",
+  "overall_score": 61.02,
+  "confidence": 0.9999,
+  "variance": 0.0225,
+  "status": "not_ready",
+  "scorecard": {
+    "task_success": 71.67,
+    "correctness": 0.0,
+    "grounding": 0.0,
+    "completeness": 75.0,
+    "tool_usage": 83.33,
+    "workflow_adherence": 100.0,
+    "consistency": 100.0,
+    "latency": 84.0,
+    "safety": 100.0,
+    "ux_tone": 0.0,
+    "overall": 61.02
+  },
+  "passing_scenarios": 0,
+  "total_scenarios": 6,
+  "manifest_sha256": "1403c04b8da9107213b1157c825f6dd7aaa1895facdfb8ba36bcafbcc69ba8b2"
+}

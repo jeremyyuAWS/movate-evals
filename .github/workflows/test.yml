@@ -1,0 +1,102 @@
+name: Test suite
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    # Daily 06:00 UTC — catches upstream-dep churn in DeepEval / Ragas / TruLens
+    # before it bites a customer-engagement run.
+    - cron: "0 6 * * *"
+
+# Cancel in-progress runs on the same ref when a new push lands.
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: pytest (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Create venv + install package with all test-relevant extras
+        run: |
+          uv venv --python ${{ matrix.python-version }} .venv
+          # `judges` brings DeepEval; `viz` brings Altair + vl-convert; `dev` brings pytest et al.
+          # No `langfuse` / `pdf` / `langgraph` — those are runtime-optional and not exercised by
+          # the test suite (their integrations are guarded by import-availability checks).
+          uv pip install --python .venv/bin/python -e ".[dev,judges,viz]"
+
+      - name: Lint (ruff)
+        run: .venv/bin/ruff check mdk_eval tests
+
+      - name: Run tests
+        # Tests that depend on optional extras are guarded by pytest.mark.skipif;
+        # we install the extras above so chart tests do run, not skip.
+        run: .venv/bin/python -m pytest tests/ -v --tb=short
+
+      - name: Smoke test the CLI
+        # Ensures the entry point + mock adapter + report generation all wire up end-to-end
+        # in the CI environment, not just at unit-test granularity.
+        run: |
+          .venv/bin/mdk-eval version
+          .venv/bin/mdk-eval -q run -c configs/sample-mock.yaml
+
+  # Live end-to-end smoke against the deployed Fly.io backend + Supabase.
+  # Skips automatically when MDK_WEB_API_KEY is not set in repo secrets — so
+  # forks and PRs from outside contributors don't fail on a missing secret.
+  # Runs only after the unit-test job passes — no point hitting prod if local tests are red.
+  e2e_live:
+    name: e2e against deployed backend
+    runs-on: ubuntu-latest
+    needs: test
+    # Skip when secrets are unavailable (forks, dependabot, first-time PRs).
+    # The `if` checks the deployed-backend secret as a proxy for "this fork can reach the live env."
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install jq + curl
+        run: |
+          # ubuntu-latest already has both, but pin in case of future image changes.
+          which curl jq
+
+      - name: Run e2e smoke test against live Fly deployment
+        env:
+          API_BASE: ${{ vars.MDK_API_BASE || 'https://mdk-eval-web.fly.dev' }}
+          MDK_WEB_API_KEY: ${{ secrets.MDK_WEB_API_KEY }}
+          # Use a unique slug per CI run so we don't collide with prior runs in the DB.
+          # GitHub run number guarantees monotonic uniqueness.
+          ENGAGEMENT_SLUG: ci-smoke
+          AGENT_SLUG: ci-smoke-${{ github.run_number }}
+          POLL_TIMEOUT_S: 120
+        run: |
+          if [ -z "${MDK_WEB_API_KEY}" ]; then
+            echo "::warning::MDK_WEB_API_KEY secret is not configured; skipping live e2e test."
+            echo "Set the secret in Settings → Secrets and variables → Actions to enable this check."
+            exit 0
+          fi
+          chmod +x ./tests/test_e2e_smoke.sh
+          ./tests/test_e2e_smoke.sh

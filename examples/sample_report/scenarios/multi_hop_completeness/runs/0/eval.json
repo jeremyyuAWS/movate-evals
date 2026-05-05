@@ -1,0 +1,169 @@
+{
+  "scenario_id": "multi_hop_completeness",
+  "run_index": 0,
+  "trace_id": "multi_hop_completeness::0",
+  "adapter": {
+    "ok": true,
+    "output_text": "Per the available context: The order_status tool returns status and ETA for any order ID.. Direct answer to your question: see the tool result.",
+    "output_json": {
+      "answer": "Per the available context: The order_status tool returns status and ETA for any order ID.. Direct answer to your question: see the tool result.",
+      "sources": [
+        "The order_status tool returns status and ETA for any order ID."
+      ]
+    },
+    "trace": {
+      "started_at": "2026-05-05T04:52:28.849200Z",
+      "ended_at": "2026-05-05T04:52:29.014025Z",
+      "latency_ms": 164,
+      "retries": 0,
+      "tool_calls": [
+        {
+          "name": "order_status",
+          "args": {
+            "q": "For order #A-99812, what is the status AND the estimated delivery date?"
+          },
+          "result": {
+            "hits": [
+              "The order_status tool returns status and ETA for any order ID."
+            ]
+          },
+          "started_at": "2026-05-05T04:52:28.986549Z",
+          "ended_at": "2026-05-05T04:52:29.013876Z",
+          "error": null
+        }
+      ],
+      "sub_agents": [
+        {
+          "agent": "formatter",
+          "input": "Per the available context: The order_status tool returns status and ETA for any order ID.. Direct answer to your question: see the tool result.",
+          "output": "Per the available context: The order_status tool returns status and ETA for any order ID.. Direct answer to your question: see the tool result.",
+          "latency_ms": 8
+        }
+      ],
+      "workflow_path": [
+        "intent_classifier",
+        "tool:order_status",
+        "responder",
+        "responder"
+      ],
+      "raw_request": {
+        "prompt": "For order #A-99812, what is the status AND the estimated delivery date?",
+        "trigger": ""
+      },
+      "raw_response": {
+        "answer": "Per the available context: The order_status tool returns status and ETA for any order ID.. Direct answer to your question: see the tool result.",
+        "sources": [
+          "The order_status tool returns status and ETA for any order ID."
+        ]
+      },
+      "extra": {}
+    },
+    "error": null
+  },
+  "deterministic": [
+    {
+      "name": "adapter_ok",
+      "passed": true,
+      "score": 1.0,
+      "severity": "critical",
+      "reason": null,
+      "details": {}
+    },
+    {
+      "name": "schema",
+      "passed": true,
+      "score": 1.0,
+      "severity": "high",
+      "reason": null,
+      "details": {}
+    },
+    {
+      "name": "required_fields",
+      "passed": true,
+      "score": 1.0,
+      "severity": "high",
+      "reason": null,
+      "details": {
+        "missing": []
+      }
+    },
+    {
+      "name": "forbidden_phrases",
+      "passed": true,
+      "score": 1.0,
+      "severity": "low",
+      "reason": "none defined",
+      "details": {}
+    },
+    {
+      "name": "tool_usage",
+      "passed": true,
+      "score": 1.0,
+      "severity": "high",
+      "reason": null,
+      "details": {
+        "missing": [],
+        "arg_mismatches": [],
+        "called": [
+          "order_status"
+        ]
+      }
+    },
+    {
+      "name": "workflow_adherence",
+      "passed": true,
+      "score": 1.0,
+      "severity": "medium",
+      "reason": null,
+      "details": {
+        "visited": [
+          "intent_classifier",
+          "tool:order_status",
+          "responder",
+          "responder"
+        ]
+      }
+    },
+    {
+      "name": "latency",
+      "passed": true,
+      "score": 1.0,
+      "severity": "medium",
+      "reason": null,
+      "details": {
+        "latency_ms": 164,
+        "budget_ms": 2000
+      }
+    },
+    {
+      "name": "retries",
+      "passed": true,
+      "score": 1.0,
+      "severity": "medium",
+      "reason": null,
+      "details": {
+        "retries": 0,
+        "cap": 1
+      }
+    }
+  ],
+  "judge_panel": [],
+  "deepeval": {},
+  "triangulations": {},
+  "category_scores": {
+    "correctness": 0.0,
+    "grounding": 0.0,
+    "completeness": 100.0,
+    "tool_usage": 100.0,
+    "workflow_adherence": 100.0,
+    "latency": 100.0,
+    "ux_tone": 0.0,
+    "safety": 100.0,
+    "consistency": 100.0,
+    "task_success": 100.0
+  },
+  "final_score": 70.73,
+  "passed": false,
+  "findings": [],
+  "duration_ms": 165
+}

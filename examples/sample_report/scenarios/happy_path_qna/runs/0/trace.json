@@ -1,0 +1,47 @@
+{
+  "started_at": "2026-05-05T04:52:29.093551Z",
+  "ended_at": "2026-05-05T04:52:29.374173Z",
+  "latency_ms": 280,
+  "retries": 0,
+  "tool_calls": [
+    {
+      "name": "kb_search",
+      "args": {
+        "q": "What is the maximum file upload size for the customer portal?"
+      },
+      "result": {
+        "hits": [
+          "The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG."
+        ]
+      },
+      "started_at": "2026-05-05T04:52:29.295799Z",
+      "ended_at": "2026-05-05T04:52:29.374040Z",
+      "error": null
+    }
+  ],
+  "sub_agents": [
+    {
+      "agent": "formatter",
+      "input": "Per the available context: The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG.. Direct answer to your question: see the tool result.",
+      "output": "Per the available context: The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG.. Direct answer to your question: see the tool result.",
+      "latency_ms": 8
+    }
+  ],
+  "workflow_path": [
+    "intent_classifier",
+    "tool:kb_search",
+    "responder",
+    "responder"
+  ],
+  "raw_request": {
+    "prompt": "What is the maximum file upload size for the customer portal?",
+    "trigger": ""
+  },
+  "raw_response": {
+    "answer": "Per the available context: The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG.. Direct answer to your question: see the tool result.",
+    "sources": [
+      "The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG."
+    ]
+  },
+  "extra": {}
+}

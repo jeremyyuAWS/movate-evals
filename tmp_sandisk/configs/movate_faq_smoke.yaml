@@ -1,0 +1,25 @@
+adapter:
+  target: lyzr
+  agent_id: 69f9630789e1a27b8101014b
+  api_key_env: LYZR_API_KEY
+  response_text_path: $.response
+  timeout_s: 60.0
+  max_retries: 1
+
+# Deterministic-only smoke test — no judge tokens spent.
+# Re-run with judges_enabled: true and OPENAI_API_KEY/ANTHROPIC_API_KEY in env
+# for full multi-role scoring. With judges, hallucination on the
+# "unknown_specific_should_acknowledge" scenario should be flagged.
+judges_enabled: false
+judges:
+  enabled_roles: []
+
+runs_per_scenario: 1
+concurrency: 2
+output_dir: ./results
+dataset: tmp_sandisk/datasets/movate_faq_smoke.jsonl
+langfuse_enabled: false
+pdf: false
+
+client_name: Movate FAQ Assistant — smoke test
+confidentiality_footer: "Internal smoke test — Movate Agent Assurance."

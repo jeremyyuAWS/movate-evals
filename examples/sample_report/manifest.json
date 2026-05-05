@@ -1,0 +1,34 @@
+{
+  "run_id": "run_2026-05-05T04-52-28Z",
+  "started_at": "2026-05-05T04:52:28.581636Z",
+  "ended_at": "2026-05-05T04:52:31.497531Z",
+  "target": "mock",
+  "endpoint": null,
+  "runs_per_scenario": 2,
+  "judges_enabled": [],
+  "judge_models": {},
+  "meta_judge_model": "anthropic:claude-sonnet-4-6",
+  "arbitration_variance_threshold": 0.04,
+  "dataset_path": "datasets/sample.jsonl",
+  "dataset_sha256": "50f9afc6790f9a926d68175225cfdd2dab5acd49e78d3ce5744202488ab8f07b",
+  "config_sha256": "ce322b1eb3d79e244511857b5e0df532bac8c1f04d4d5c0e7d8c0fbc74c721bd",
+  "judge_prompts_sha256": {
+    "correctness": "ca57b39080b9d096a13fcfc9d9f1f9f8c703d74720c83b93e9fde2fa17af24df",
+    "grounding": "dd5a2a40c87ea48c9bf264422ce20fc3c072b709d4b320a77bfab3a5ea5dd894",
+    "completeness": "a386d7c009270a5fe8fc11de15e8cf4d3b36fcd1649c48ec29d259a27b469348",
+    "tool_usage": "2d96a7602d107aa0a6edded8e8a62fc924cbb6208a4ada6e53dd1af2fa9a1d3e",
+    "ux_tone": "087ac94afd6aef4c68604886048d8fb315c3df16ee25a8ed45f3796e41a71fbd",
+    "safety": "7157d5fe529d2f5b04d3e7a9bd59752b9e44b354df8560c4a4f407915da7e593",
+    "meta": "6786898e52ea2299a5cdc38eb1e5d240010fb4d2fe38061f88f9ec171713e12a"
+  },
+  "tool_versions": {
+    "openai": "2.34.0",
+    "anthropic": "0.98.1",
+    "deepeval": "3.9.9",
+    "langfuse": "4.5.1",
+    "httpx": "0.28.1",
+    "pydantic": "2.13.3",
+    "jinja2": "3.1.6"
+  },
+  "mdk_eval_version": "0.1.0"
+}

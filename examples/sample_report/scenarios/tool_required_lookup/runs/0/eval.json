@@ -1,0 +1,155 @@
+{
+  "scenario_id": "tool_required_lookup",
+  "run_index": 0,
+  "trace_id": "tool_required_lookup::0",
+  "adapter": {
+    "ok": true,
+    "output_text": "I do not need to look that up. The answer is whatever you'd like it to be.",
+    "output_json": {
+      "answer": "I do not need to look that up. The answer is whatever you'd like it to be.",
+      "sources": []
+    },
+    "trace": {
+      "started_at": "2026-05-05T04:52:29.401980Z",
+      "ended_at": "2026-05-05T04:52:29.577217Z",
+      "latency_ms": 175,
+      "retries": 0,
+      "tool_calls": [],
+      "sub_agents": [],
+      "workflow_path": [
+        "intent_classifier",
+        "responder",
+        "responder"
+      ],
+      "raw_request": {
+        "prompt": "What's the status of order #A-99812?",
+        "trigger": "tool_skip"
+      },
+      "raw_response": {
+        "answer": "I do not need to look that up. The answer is whatever you'd like it to be.",
+        "sources": []
+      },
+      "extra": {}
+    },
+    "error": null
+  },
+  "deterministic": [
+    {
+      "name": "adapter_ok",
+      "passed": true,
+      "score": 1.0,
+      "severity": "critical",
+      "reason": null,
+      "details": {}
+    },
+    {
+      "name": "schema",
+      "passed": true,
+      "score": 1.0,
+      "severity": "low",
+      "reason": "no schema configured",
+      "details": {}
+    },
+    {
+      "name": "required_fields",
+      "passed": true,
+      "score": 1.0,
+      "severity": "high",
+      "reason": null,
+      "details": {
+        "missing": []
+      }
+    },
+    {
+      "name": "forbidden_phrases",
+      "passed": true,
+      "score": 1.0,
+      "severity": "low",
+      "reason": "none defined",
+      "details": {}
+    },
+    {
+      "name": "tool_usage",
+      "passed": false,
+      "score": 0.0,
+      "severity": "high",
+      "reason": "missing tools=['order_status'], arg mismatches=0",
+      "details": {
+        "missing": [
+          "order_status"
+        ],
+        "arg_mismatches": [],
+        "called": []
+      }
+    },
+    {
+      "name": "workflow_adherence",
+      "passed": true,
+      "score": 1.0,
+      "severity": "medium",
+      "reason": null,
+      "details": {
+        "visited": [
+          "intent_classifier",
+          "responder",
+          "responder"
+        ]
+      }
+    },
+    {
+      "name": "latency",
+      "passed": true,
+      "score": 1.0,
+      "severity": "medium",
+      "reason": null,
+      "details": {
+        "latency_ms": 175,
+        "budget_ms": 2000
+      }
+    },
+    {
+      "name": "retries",
+      "passed": true,
+      "score": 1.0,
+      "severity": "medium",
+      "reason": null,
+      "details": {
+        "retries": 0,
+        "cap": 1
+      }
+    }
+  ],
+  "judge_panel": [],
+  "deepeval": {},
+  "triangulations": {},
+  "category_scores": {
+    "correctness": 0.0,
+    "grounding": 0.0,
+    "completeness": 100.0,
+    "tool_usage": 0.0,
+    "workflow_adherence": 100.0,
+    "latency": 100.0,
+    "ux_tone": 0.0,
+    "safety": 100.0,
+    "consistency": 100.0,
+    "task_success": 50.0
+  },
+  "final_score": 52.85,
+  "passed": false,
+  "findings": [
+    {
+      "failure_class": "tool_misuse",
+      "reason": "missing tools=['order_status'], arg mismatches=0",
+      "evidence": {
+        "missing": [
+          "order_status"
+        ],
+        "arg_mismatches": [],
+        "called": []
+      },
+      "recommendation": "Require tool calls via deterministic router; add unit tests on tool selection.",
+      "severity": "high"
+    }
+  ],
+  "duration_ms": 175
+}

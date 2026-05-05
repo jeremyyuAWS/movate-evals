@@ -1,0 +1,169 @@
+{
+  "scenario_id": "happy_path_qna",
+  "run_index": 1,
+  "trace_id": "happy_path_qna::1",
+  "adapter": {
+    "ok": true,
+    "output_text": "Per the available context: The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG.. Direct answer to your question: see the tool result.",
+    "output_json": {
+      "answer": "Per the available context: The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG.. Direct answer to your question: see the tool result.",
+      "sources": [
+        "The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG."
+      ]
+    },
+    "trace": {
+      "started_at": "2026-05-05T04:52:28.590394Z",
+      "ended_at": "2026-05-05T04:52:28.856614Z",
+      "latency_ms": 266,
+      "retries": 0,
+      "tool_calls": [
+        {
+          "name": "kb_search",
+          "args": {
+            "q": "What is the maximum file upload size for the customer portal?"
+          },
+          "result": {
+            "hits": [
+              "The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG."
+            ]
+          },
+          "started_at": "2026-05-05T04:52:28.792171Z",
+          "ended_at": "2026-05-05T04:52:28.856516Z",
+          "error": null
+        }
+      ],
+      "sub_agents": [
+        {
+          "agent": "formatter",
+          "input": "Per the available context: The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG.. Direct answer to your question: see the tool result.",
+          "output": "Per the available context: The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG.. Direct answer to your question: see the tool result.",
+          "latency_ms": 8
+        }
+      ],
+      "workflow_path": [
+        "intent_classifier",
+        "tool:kb_search",
+        "responder",
+        "responder"
+      ],
+      "raw_request": {
+        "prompt": "What is the maximum file upload size for the customer portal?",
+        "trigger": ""
+      },
+      "raw_response": {
+        "answer": "Per the available context: The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG.. Direct answer to your question: see the tool result.",
+        "sources": [
+          "The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG."
+        ]
+      },
+      "extra": {}
+    },
+    "error": null
+  },
+  "deterministic": [
+    {
+      "name": "adapter_ok",
+      "passed": true,
+      "score": 1.0,
+      "severity": "critical",
+      "reason": null,
+      "details": {}
+    },
+    {
+      "name": "schema",
+      "passed": true,
+      "score": 1.0,
+      "severity": "high",
+      "reason": null,
+      "details": {}
+    },
+    {
+      "name": "required_fields",
+      "passed": true,
+      "score": 1.0,
+      "severity": "high",
+      "reason": null,
+      "details": {
+        "missing": []
+      }
+    },
+    {
+      "name": "forbidden_phrases",
+      "passed": true,
+      "score": 1.0,
+      "severity": "low",
+      "reason": "none defined",
+      "details": {}
+    },
+    {
+      "name": "tool_usage",
+      "passed": true,
+      "score": 1.0,
+      "severity": "high",
+      "reason": null,
+      "details": {
+        "missing": [],
+        "arg_mismatches": [],
+        "called": [
+          "kb_search"
+        ]
+      }
+    },
+    {
+      "name": "workflow_adherence",
+      "passed": true,
+      "score": 1.0,
+      "severity": "medium",
+      "reason": null,
+      "details": {
+        "visited": [
+          "intent_classifier",
+          "tool:kb_search",
+          "responder",
+          "responder"
+        ]
+      }
+    },
+    {
+      "name": "latency",
+      "passed": true,
+      "score": 1.0,
+      "severity": "medium",
+      "reason": null,
+      "details": {
+        "latency_ms": 266,
+        "budget_ms": 1500
+      }
+    },
+    {
+      "name": "retries",
+      "passed": true,
+      "score": 1.0,
+      "severity": "medium",
+      "reason": null,
+      "details": {
+        "retries": 0,
+        "cap": 1
+      }
+    }
+  ],
+  "judge_panel": [],
+  "deepeval": {},
+  "triangulations": {},
+  "category_scores": {
+    "correctness": 0.0,
+    "grounding": 0.0,
+    "completeness": 100.0,
+    "tool_usage": 100.0,
+    "workflow_adherence": 100.0,
+    "latency": 100.0,
+    "ux_tone": 0.0,
+    "safety": 100.0,
+    "consistency": 100.0,
+    "task_success": 100.0
+  },
+  "final_score": 70.73,
+  "passed": false,
+  "findings": [],
+  "duration_ms": 266
+}

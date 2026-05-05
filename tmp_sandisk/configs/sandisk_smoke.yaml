@@ -1,0 +1,24 @@
+adapter:
+  target: lyzr
+  agent_id: 69eb9bb914e70411b00f8095
+  api_key_env: LYZR_API_KEY
+  response_text_path: $.response
+  timeout_s: 60.0
+  max_retries: 1
+
+# Deterministic-only smoke test — no judge tokens spent.
+# Re-run with judges_enabled: true and OPENAI_API_KEY/ANTHROPIC_API_KEY in env
+# for full multi-role scoring (correctness, grounding, ux_tone).
+judges_enabled: false
+judges:
+  enabled_roles: []
+
+runs_per_scenario: 1
+concurrency: 2
+output_dir: ./results
+dataset: tmp_sandisk/datasets/sandisk_smoke.jsonl
+langfuse_enabled: false
+pdf: false
+
+client_name: SanDisk Returns Manager v4 — smoke test
+confidentiality_footer: "Internal smoke test — Movate Agent Assurance."

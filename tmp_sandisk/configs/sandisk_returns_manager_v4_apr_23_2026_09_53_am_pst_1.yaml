@@ -1,0 +1,51 @@
+adapter:
+  target: lyzr
+  endpoint: null
+  agent_id: 69eb9bb914e70411b00f8095
+  api_key_env: LYZR_API_KEY
+  headers: {}
+  request_template: null
+  response_text_path: $.response
+  response_tools_path: null
+  response_workflow_path: null
+  timeout_s: 60.0
+  max_retries: 2
+  graph_import_path: null
+judges:
+  enabled_roles:
+  - correctness
+  - grounding
+  - completeness
+  - tool_usage
+  - ux_tone
+  - safety
+  panel:
+  - provider: openai
+    model: gpt-4o-mini
+    temperature: 0.0
+  - provider: anthropic
+    model: claude-haiku-4-5-20251001
+    temperature: 0.0
+  meta_judge:
+    provider: anthropic
+    model: claude-sonnet-4-6
+    temperature: 0.0
+  arbitration_variance_threshold: 0.04
+  deepeval_metrics:
+  - g_eval
+  - task_completion
+  - hallucination
+  - answer_relevance
+  triangulation_enabled: true
+  triangulation_disagreement_threshold: 0.3
+judges_enabled: true
+runs_per_scenario: 3
+concurrency: 4
+output_dir: ./results
+dataset: tmp_sandisk/datasets/sandisk_returns_manager_v4_apr_23_2026_09_53_am_pst_1.jsonl
+langfuse_enabled: false
+pdf: true
+client_name: SanDisk Returns Manager v4 (APR 23, 2026, 09:53 AM PST) (1)
+client_logo_path: null
+movate_logo_path: null
+confidentiality_footer: "Confidential \u2014 prepared by Movate Agent Assurance."

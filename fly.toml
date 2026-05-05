@@ -1,0 +1,42 @@
+# fly.toml app configuration file generated for mdk-eval-web on 2026-05-04T21:55:28-07:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'mdk-eval-web'
+primary_region = 'ord'
+
+[experimental]
+  auto_rollback = true
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  PORT = '8080'
+
+# Persistent disk for the judge cache. Currently disabled — re-enable by
+# running `fly volumes create mdk_cache --size 1 --region ord` and uncommenting
+# the [[mounts]] block. Without it, the judge cache is per-machine and lost
+# on every restart (still fine; just costs ~$0.10 in tokens to rewarm).
+# [[mounts]]
+#   source = 'mdk_cache'
+#   destination = '/home/mdk/.mdk-eval'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '10s'
+    method = 'get'
+    path = '/healthz'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '1gb'

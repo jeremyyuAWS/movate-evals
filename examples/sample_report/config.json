@@ -1,0 +1,63 @@
+{
+  "adapter": {
+    "target": "mock",
+    "endpoint": null,
+    "agent_id": null,
+    "api_key_env": null,
+    "headers": {},
+    "request_template": null,
+    "response_text_path": "$.response",
+    "response_tools_path": null,
+    "response_workflow_path": null,
+    "timeout_s": 60.0,
+    "max_retries": 2,
+    "graph_import_path": null
+  },
+  "judges": {
+    "enabled_roles": [
+      "correctness",
+      "grounding",
+      "completeness",
+      "tool_usage",
+      "ux_tone",
+      "safety"
+    ],
+    "panel": [
+      {
+        "provider": "openai",
+        "model": "gpt-4o-mini",
+        "temperature": 0.0
+      },
+      {
+        "provider": "anthropic",
+        "model": "claude-haiku-4-5-20251001",
+        "temperature": 0.0
+      }
+    ],
+    "meta_judge": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "temperature": 0.0
+    },
+    "arbitration_variance_threshold": 0.04,
+    "deepeval_metrics": [
+      "g_eval",
+      "task_completion",
+      "hallucination",
+      "answer_relevance"
+    ],
+    "triangulation_enabled": true,
+    "triangulation_disagreement_threshold": 0.3
+  },
+  "judges_enabled": false,
+  "runs_per_scenario": 2,
+  "concurrency": 4,
+  "output_dir": "./results",
+  "dataset": "datasets/sample.jsonl",
+  "langfuse_enabled": false,
+  "pdf": false,
+  "client_name": "Internal Smoke Test",
+  "client_logo_path": null,
+  "movate_logo_path": null,
+  "confidentiality_footer": "Confidential \u2014 prepared by Movate Agent Assurance."
+}

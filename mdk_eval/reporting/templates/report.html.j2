@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Movate Agent Assurance — {{ cfg.client_name }}</title>
+<style>
+  :root {
+    /* Movate brand palette — sourced from movate.com WordPress theme tokens.
+       Foundation = ink + plum; accent gradient = magenta → coral → orange → yellow. */
+    --movate-ink:        #26282b;   /* primary text */
+    --movate-plum:       #4f3144;   /* secondary — section headers, dividers */
+    --movate-plum-soft:  #6e4f63;   /* muted plum — captions, metadata */
+    --movate-plum-tint:  #f6f2f5;   /* very pale plum — section backgrounds */
+
+    --movate-magenta:    #ED1E79;   /* primary brand accent — CTAs, hero strip */
+    --movate-pink:       #FF4F9A;   /* lighter accent — inline highlights */
+    --movate-coral:      #FF5542;   /* tertiary action color */
+    --movate-orange:     #F15A24;
+    --movate-amber:      #F7941D;
+    --movate-yellow:     #FFD200;
+
+    /* Legacy token names kept for selector compatibility — pointed at new values */
+    --movate-accent: var(--movate-magenta);
+    --movate-soft:   var(--movate-plum-tint);
+    --movate-line:   #e6dde3;       /* plum-tinted neutral border */
+
+    /* Status / readiness — green stays for "ready" (universal convention);
+       middle bands use brand warm tones; not_ready uses brand magenta for unmissable signal. */
+    --pass:   #1e7e34;
+    --watch:  var(--movate-amber);
+    --fail:   var(--movate-magenta);
+    --pass-soft:  #e6f4ea;
+    --watch-soft: #fff5e0;
+    --fail-soft:  #fde4ee;
+
+    /* Neutrals retuned away from the previous blue-leaning grays */
+    --text-muted: var(--movate-plum-soft);
+    --text-meta:  #5a4a54;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--movate-ink);
+    background: #fff;
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+  .page {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 36px 44px 80px;
+  }
+  header.brand {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 18px; margin-bottom: 28px;
+    position: relative;
+  }
+  /* Brand gradient strip — magenta → coral → orange → yellow.
+     Single visual signature; appears once at the top of every report. */
+  header.brand::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px;
+    background: linear-gradient(
+      90deg,
+      var(--movate-magenta) 0%,
+      var(--movate-coral) 45%,
+      var(--movate-orange) 75%,
+      var(--movate-amber) 100%
+    );
+    border-radius: 2px;
+  }
+  .brand-mark {
+    display: flex; align-items: center; gap: 14px;
+  }
+  /* Movate wordmark — preserves the brand's natural ~1.9:1 aspect ratio.
+     Object-fit: contain so the image never crops on Retina rendering. */
+  .brand-mark .logo {
+    height: 38px; width: auto; max-width: 130px;
+    object-fit: contain;
+    display: block;
+  }
+  .brand-mark .title {
+    font-weight: 800; font-size: 18px; letter-spacing: .2px;
+  }
+  .brand-mark .subtitle {
+    font-size: 11.5px; color: var(--text-muted); margin-top: 2px;
+  }
+  .meta {
+    text-align: right; font-size: 11.5px; color: var(--text-muted);
+  }
+  h1, h2, h3 { color: var(--movate-ink); font-weight: 700; }
+  h2 {
+    font-size: 17px; margin: 32px 0 12px;
+    padding-bottom: 6px; border-bottom: 1px solid var(--movate-line);
+    text-transform: uppercase; letter-spacing: .6px;
+  }
+  h3 { font-size: 14px; margin: 20px 0 8px; }
+  .hero {
+    background: var(--movate-soft);
+    border: 1px solid var(--movate-line);
+    border-left: 6px solid var(--movate-accent);
+    padding: 22px 26px;
+    border-radius: 8px;
+    display: grid; grid-template-columns: 1.4fr 1fr; gap: 22px;
+    margin-bottom: 18px;
+  }
+  .hero h1 { margin: 0 0 6px; font-size: 22px; }
+  .hero .headline { font-size: 16px; color: var(--movate-plum); margin-bottom: 14px; }
+  .badge {
+    display: inline-block; padding: 4px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; letter-spacing: .4px;
+    color: #fff;
+  }
+  .score-circle {
+    display: grid; place-items: center;
+    width: 130px; height: 130px; border-radius: 50%;
+    /* Color matches the readiness status — visual link between the score arc and the status badge */
+    background: conic-gradient(
+      {{ report.status.value | readiness_color }} calc({{ (report.overall_score / 100.0) * 360 }}deg),
+      var(--movate-line) 0
+    );
+    margin: 0 auto;
+  }
+  .score-circle .inner {
+    width: 104px; height: 104px; border-radius: 50%;
+    background: #fff;
+    display: grid; place-items: center;
+    text-align: center;
+  }
+  .score-circle .num { font-size: 30px; font-weight: 800; }
+  .score-circle .lbl { font-size: 10px; color: var(--text-muted); letter-spacing: 1px; }
+  .grid { display: grid; gap: 10px; }
+  .grid.cols-7 { grid-template-columns: repeat(7, 1fr); }
+  .grid.cols-5 { grid-template-columns: repeat(5, 1fr); }
+  .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .card {
+    border: 1px solid var(--movate-line); border-radius: 8px; padding: 14px;
+    background: #fff;
+  }
+  .axis {
+    text-align: center; padding: 12px 8px;
+    border-radius: 8px; background: #fff;
+    border: 1px solid var(--movate-line);
+  }
+  .axis .v { font-size: 22px; font-weight: 800; }
+  .axis .k { font-size: 10.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .6px; margin-top: 4px; }
+  .axis.pass .v { color: var(--pass); }
+  .axis.watch .v { color: var(--watch); }
+  .axis.fail .v { color: var(--fail); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { padding: 8px 10px; border-bottom: 1px solid var(--movate-line); text-align: left; vertical-align: top; }
+  th { background: var(--movate-soft); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--movate-plum); }
+  tr.pass td { background: #fff; }
+  tr.fail td { background: var(--fail-soft); }
+  tr.watch td { background: var(--watch-soft); }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+  .pill.pass { background: var(--pass-soft); color: var(--pass); }
+  .pill.fail { background: var(--fail-soft); color: var(--fail); }
+  .pill.watch { background: var(--watch-soft); color: var(--watch); }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11.5px; }
+  .small { font-size: 11.5px; color: var(--text-muted); }
+  .kv { display: grid; grid-template-columns: 200px 1fr; row-gap: 4px; column-gap: 12px; font-size: 12px; }
+  .kv .k { color: var(--text-muted); }
+  .kv .v { color: var(--movate-ink); word-break: break-all; }
+  ul.findings { margin: 6px 0 0 18px; padding: 0; }
+  ul.findings li { margin-bottom: 4px; }
+  .recommendation {
+    margin-top: 10px;
+    background: #fff; padding: 10px 12px; border-radius: 6px;
+    border-left: 4px solid var(--movate-accent);
+    font-weight: 600;
+  }
+  footer {
+    margin-top: 60px; padding-top: 14px; border-top: 1px solid var(--movate-line);
+    color: var(--text-muted); font-size: 11px; text-align: center;
+  }
+  details { margin: 6px 0; }
+  details summary { cursor: pointer; font-weight: 600; font-size: 12px; }
+  .judge-row { display: grid; grid-template-columns: 1.5fr 80px 80px 1fr; gap: 8px; padding: 4px 0; border-bottom: 1px dashed var(--movate-line); font-size: 11.5px; }
+  .judge-row:last-child { border-bottom: none; }
+  .escalated { color: var(--fail); font-weight: 700; }
+  @media print {
+    .page { padding: 24px; }
+    h2 { page-break-after: avoid; }
+    .scenario-card { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="brand">
+    <div class="brand-mark">
+      <img class="logo" src="{{ movate_logo_data_uri }}" alt="Movate">
+      <div>
+        <div class="title">Agent Assurance</div>
+        <div class="subtitle">Production-readiness evaluation for {{ cfg.client_name }}</div>
+      </div>
+    </div>
+    <div class="meta">
+      <div><strong>Run ID:</strong> {{ report.manifest.run_id }}</div>
+      <div><strong>Generated:</strong> {{ report.manifest.ended_at or report.manifest.started_at }}</div>
+      <div><strong>Target:</strong> {{ report.manifest.target }}{% if report.manifest.endpoint %} — <span class="mono">{{ report.manifest.endpoint }}</span>{% endif %}</div>
+    </div>
+  </header>
+
+  {# ---------------------- 1. EXECUTIVE SUMMARY ---------------------- #}
+  <section class="hero">
+    <div>
+      <h1>Executive Summary</h1>
+      <div class="headline">{{ report.headline }}</div>
+      <div>
+        <span class="badge" style="background: {{ report.status.value | readiness_color }}; color: {{ report.status.value | readiness_text_color }};">
+          {{ report.status.value | replace('_', ' ') | upper }}
+        </span>
+        <span class="small" style="margin-left:10px;">
+          Confidence {{ '%.0f' | format(report.confidence * 100) }}%
+          · Variance {{ '%.1f' | format(report.variance) }}
+        </span>
+      </div>
+      <div class="recommendation">
+        Recommendation — {{ report.recommendation }}
+      </div>
+      <h3 style="margin-top:18px;">Key findings</h3>
+      <ul class="findings">
+        {% for f in report.key_findings %}<li>{{ f }}</li>{% endfor %}
+      </ul>
+    </div>
+    <div style="display:grid; place-items:center;">
+      <div class="score-circle">
+        <div class="inner">
+          <div class="num">{{ report.overall_score | score100 }}</div>
+          <div class="lbl">/ 100</div>
+        </div>
+      </div>
+      <div class="small" style="margin-top: 10px;">Composite reliability score</div>
+    </div>
+  </section>
+
+  {# ---------------------- 2. SCORECARD ---------------------- #}
+  <h2>Reliability Scorecard</h2>
+  {% set chart_svg = report.scorecard | scorecard_chart %}
+  {% if chart_svg %}
+    <div class="card scorecard-chart" style="padding: 18px 14px;">
+      {{ chart_svg | safe }}
+    </div>
+  {% endif %}
+  <div class="grid cols-5" {% if chart_svg %}style="margin-top: 14px;"{% endif %}>
+    {% for k, label in [('task_success','Task Success'),('correctness','Correctness'),('grounding','Grounding'),('completeness','Completeness'),('tool_usage','Tool Usage'),('workflow_adherence','Workflow'),('consistency','Consistency'),('latency','Latency'),('safety','Safety'),('ux_tone','UX/Tone')] %}
+      {% set v = report.scorecard[k] %}
+      {% set cls = 'pass' if v >= 80 else ('watch' if v >= 60 else 'fail') %}
+      <div class="axis {{ cls }}">
+        <div class="v">{{ v | score100 }}</div>
+        <div class="k">{{ label }}</div>
+      </div>
+    {% endfor %}
+  </div>
+
+  {# ---------------------- 3. METHODOLOGY ---------------------- #}
+  <h2>Methodology</h2>
+  <div class="card">
+    <div class="kv">
+      <div class="k">Scenarios</div><div class="v">{{ report.scenario_aggregates|length }}</div>
+      <div class="k">Runs / scenario</div><div class="v">{{ report.manifest.runs_per_scenario }}</div>
+      <div class="k">Judge roles</div><div class="v">{{ report.manifest.judges_enabled | join(', ') or '— (judges disabled)' }}</div>
+      <div class="k">Judge models / role</div>
+      <div class="v">
+        {% for role, models in report.manifest.judge_models.items() %}
+          <div><strong>{{ role }}:</strong> {{ models | join(', ') }}</div>
+        {% endfor %}
+      </div>
+      <div class="k">Meta-judge</div><div class="v">{{ report.manifest.meta_judge_model }}</div>
+      <div class="k">Arbitration variance threshold</div><div class="v">{{ report.manifest.arbitration_variance_threshold }}</div>
+      <div class="k">Grounding triangulation</div>
+      <div class="v">
+        {% if cfg.judges.triangulation_enabled %}
+          enabled — providers run in parallel; meta-judge escalation when spread &gt; {{ cfg.judges.triangulation_disagreement_threshold }}
+        {% else %}disabled{% endif %}
+      </div>
+      <div class="k">Dataset</div><div class="v mono">{{ report.manifest.dataset_path }} (sha256 {{ report.manifest.dataset_sha256[:16] }}…)</div>
+      <div class="k">Config hash</div><div class="v mono">{{ report.manifest.config_sha256[:16] }}…</div>
+      <div class="k">mdk-eval version</div><div class="v">{{ report.manifest.mdk_eval_version }}</div>
+    </div>
+  </div>
+
+  {# ---------------------- 4. DETERMINISTIC RESULTS ---------------------- #}
+  <h2>Deterministic Validation Results</h2>
+  <table>
+    <thead>
+      <tr><th>Check</th><th>Pass</th><th>Fail</th><th>Pass rate</th></tr>
+    </thead>
+    <tbody>
+      {% for name, info in report.deterministic_summary.items() %}
+        {% set cls = 'pass' if info.pass_rate >= 0.95 else ('watch' if info.pass_rate >= 0.8 else 'fail') %}
+        <tr class="{{ cls }}">
+          <td><strong>{{ name }}</strong></td>
+          <td>{{ info.pass }}</td>
+          <td>{{ info.fail }}</td>
+          <td><span class="pill {{ cls }}">{{ info.pass_rate | pct }}</span></td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {# ---------------------- 5. JUDGE PANEL ---------------------- #}
+  <h2>Judge Panel & Arbitration</h2>
+  <div class="card">
+    <div class="kv">
+      <div class="k">Total arbitrations</div><div class="v">{{ report.arbitration_stats.total_arbitrations }}</div>
+      <div class="k">Escalations to meta-judge</div><div class="v">{{ report.arbitration_stats.escalations }} ({{ report.arbitration_stats.escalation_rate | pct }})</div>
+    </div>
+    {% set tri = report.arbitration_stats.triangulation %}
+    {% if tri and tri.total %}
+      <h3 style="margin-top:14px;">Grounding triangulation</h3>
+      <div class="kv">
+        <div class="k">Provider runs</div><div class="v">{{ tri.total }}</div>
+        <div class="k">Escalated to meta-judge</div><div class="v">{{ tri.escalations }} ({{ tri.escalation_rate | pct }})</div>
+        <div class="k">Insufficient signal (&lt;2 active providers)</div><div class="v">{{ tri.insufficient_signal }}</div>
+        <div class="k">Mean / max provider spread</div><div class="v mono">{{ '%.2f' | format(tri.mean_spread) }} / {{ '%.2f' | format(tri.max_spread) }}</div>
+        <div class="k">Abstention rate by provider</div>
+        <div class="v small">
+          {% for p, rate in tri.abstention_rate_by_provider.items() %}
+            <div class="mono">{{ p }} — {{ rate | pct }}</div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+    <h3 style="margin-top:14px;">Per-role agreement</h3>
+    <table>
+      <thead><tr><th>Role</th><th>Mean variance</th><th>Mean confidence</th></tr></thead>
+      <tbody>
+        {% for role, var in report.arbitration_stats.mean_variance_per_role.items() %}
+          {% set conf = report.arbitration_stats.mean_confidence_per_role[role] %}
+          {% set cls = 'pass' if conf >= 0.85 else ('watch' if conf >= 0.7 else 'fail') %}
+          <tr class="{{ cls }}">
+            <td>{{ role }}</td>
+            <td class="mono">{{ '%.4f' | format(var) }}</td>
+            <td><span class="pill {{ cls }}">{{ conf | pct }}</span></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {# ---------------------- 6. SCENARIO-LEVEL RESULTS ---------------------- #}
+  <h2>Scenario-Level Results</h2>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Severity</th><th>Runs</th><th>Pass rate</th><th>Mean</th><th>Variance</th><th>Consistency</th><th>Drift</th><th>Failure classes</th></tr>
+    </thead>
+    <tbody>
+      {% for a in report.scenario_aggregates %}
+        {% set cls = 'pass' if a.pass_rate >= 1.0 else ('watch' if a.pass_rate >= 0.5 else 'fail') %}
+        <tr class="{{ cls }}">
+          <td><strong>{{ a.scenario_id }}</strong></td>
+          <td><span class="pill" style="background: {{ a.severity | sevcolor }}; color: var(--movate-plum);">{{ a.severity }}</span></td>
+          <td>{{ a.runs }}</td>
+          <td><span class="pill {{ cls }}">{{ a.pass_rate | pct }}</span></td>
+          <td>{{ a.mean_score | score100 }}</td>
+          <td class="mono">{{ '%.2f' | format(a.score_variance) }}</td>
+          <td class="mono">{{ a.consistency_score | score100 }}</td>
+          <td class="mono">{{ '%.2f' | format(a.drift_score) }}</td>
+          <td class="small">{{ a.findings | map(attribute='failure_class') | map('string') | unique | join(', ') if a.findings else '—' }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {# ---------------------- 7. FAILURE MODE ANALYSIS ---------------------- #}
+  <h2>Failure Mode Analysis</h2>
+  {% if report.failure_clusters %}
+    <table>
+      <thead>
+        <tr><th>Class</th><th>Severity</th><th>Count</th><th>Examples</th><th>Suggested fix</th></tr>
+      </thead>
+      <tbody>
+        {% for c in report.failure_clusters %}
+          {% set cls = 'fail' if c.severity in ['critical','high'] else ('watch' if c.severity == 'medium' else 'pass') %}
+          <tr class="{{ cls }}">
+            <td><strong>{{ c.label }}</strong> <span class="small mono">({{ c.failure_class }})</span></td>
+            <td><span class="pill {{ cls }}">{{ c.severity }}</span></td>
+            <td>{{ c.count }}</td>
+            <td class="small">{{ c.example_scenario_ids | join(', ') }}</td>
+            <td class="small">{{ c.suggested_fix }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="card">No failure clusters identified.</div>
+  {% endif %}
+
+  {# ---------------------- 8. RISK REGISTER ---------------------- #}
+  <h2>Risk Register</h2>
+  {% if report.risk_register %}
+    <table>
+      <thead>
+        <tr><th>Risk</th><th>Severity</th><th>Likelihood</th><th>Mitigation</th></tr>
+      </thead>
+      <tbody>
+        {% for r in report.risk_register %}
+          {% set cls = 'fail' if r.severity in ['critical','high'] else ('watch' if r.severity == 'medium' else 'pass') %}
+          <tr class="{{ cls }}">
+            <td><strong>{{ r.risk }}</strong></td>
+            <td><span class="pill {{ cls }}">{{ r.severity }}</span></td>
+            <td>{{ r.likelihood }}</td>
+            <td class="small">{{ r.mitigation }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="card">No material risks identified at the configured thresholds.</div>
+  {% endif %}
+
+  {# ---------------------- 9. SCENARIO DETAILS ---------------------- #}
+  <h2>Scenario Detail</h2>
+  {% for a in report.scenario_aggregates %}
+    {% set runs = runs_by_scenario[a.scenario_id] %}
+    <div class="card scenario-card" style="margin-bottom: 12px;">
+      <h3>{{ a.scenario_id }} <span class="small">— {{ a.runs }} run(s), pass {{ a.pass_rate | pct }}, mean {{ a.mean_score | score100 }}/100, consistency {{ a.consistency_score | score100 }}/100</span></h3>
+
+      {% if a.findings %}
+        <h3 style="margin-top:8px;">Findings</h3>
+        <table>
+          <thead><tr><th>Class</th><th>Severity</th><th>Reason</th><th>Recommendation</th></tr></thead>
+          <tbody>
+            {% for f in a.findings %}
+              {% set cls = 'fail' if f.severity in ['critical','high'] else ('watch' if f.severity == 'medium' else 'pass') %}
+              <tr class="{{ cls }}">
+                <td class="mono">{{ f.failure_class }}</td>
+                <td><span class="pill {{ cls }}">{{ f.severity }}</span></td>
+                <td class="small">{{ f.reason }}</td>
+                <td class="small">{{ f.recommendation }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+
+      {% set runs_for_scenario = runs_by_scenario.get(a.scenario_id, []) %}
+      {% set first_with_tri = none %}
+      {% for r in runs_for_scenario %}
+        {% if r.triangulations and r.triangulations.grounding and first_with_tri is none %}
+          {% set first_with_tri = r %}
+        {% endif %}
+      {% endfor %}
+      {% if first_with_tri %}
+        {% set tri = first_with_tri.triangulations.grounding %}
+        <details>
+          <summary>Grounding triangulation — status <span class="mono">{{ tri.status }}</span>, spread {{ '%.2f' | format(tri.spread) }}, final {{ (tri.final_score * 100) | round | int }}/100{% if tri.escalated %} <span class="escalated">[escalated]</span>{% endif %}</summary>
+          <table>
+            <thead><tr><th>Provider</th><th>Score</th><th>Abstained</th><th>Reason / rationale</th></tr></thead>
+            <tbody>
+              {% for p in tri.providers %}
+                {% set cls = 'pass' if (not p.abstained and p.score >= 0.8) else ('watch' if (not p.abstained and p.score >= 0.6) else 'fail') %}
+                <tr class="{{ cls }}">
+                  <td class="mono small">{{ p.provider }}</td>
+                  <td>{{ (p.score * 100) | round | int if not p.abstained else '—' }}</td>
+                  <td>{{ 'yes' if p.abstained else 'no' }}</td>
+                  <td class="small">{{ p.reason or (p.raw and (p.raw.rationale or p.raw.reasons)) or '' }}</td>
+                </tr>
+              {% endfor %}
+              {% if tri.meta_verdict %}
+                <tr class="watch">
+                  <td class="mono small"><strong>meta-judge</strong> ({{ tri.meta_verdict.model }})</td>
+                  <td>{{ ((tri.meta_verdict.score or 0) * 100) | round | int }}</td>
+                  <td>—</td>
+                  <td class="small">{{ tri.meta_verdict.rationale or tri.meta_verdict.error or '' }}</td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </details>
+      {% endif %}
+
+      {% if a.representative_failure %}
+        {% set rf = a.representative_failure %}
+        <details>
+          <summary>Representative failed run — trace_id <span class="mono">{{ rf.trace_id }}</span></summary>
+          <div class="kv" style="margin-top: 8px;">
+            <div class="k">Run index</div><div class="v">#{{ rf.run_index }}</div>
+            <div class="k">Final score</div><div class="v">{{ rf.final_score | score100 }}/100</div>
+            <div class="k">Latency</div><div class="v">{{ rf.adapter.trace.latency_ms }} ms ({{ rf.adapter.trace.retries }} retries)</div>
+            <div class="k">Output</div><div class="v mono">{{ rf.adapter.output_text[:500] }}{% if rf.adapter.output_text|length > 500 %}…{% endif %}</div>
+            <div class="k">Category scores</div>
+            <div class="v small">
+              {% for k, v in rf.category_scores.items() %}{{ k }}={{ v | score100 }}{% if not loop.last %} · {% endif %}{% endfor %}
+            </div>
+          </div>
+          <h3 style="margin-top:10px;">Judge verdicts</h3>
+          {% for arb in rf.judge_panel %}
+            <div class="judge-row">
+              <div><strong>{{ arb.role }}</strong>{% if arb.escalated %} <span class="escalated">[escalated]</span>{% endif %}</div>
+              <div>{{ arb.final_score | score01_pct }}/100</div>
+              <div>conf {{ arb.confidence | pct }}</div>
+              <div class="small">{% for v in arb.verdicts %}{{ v.model }}: {{ '%.2f' | format(v.score) }}{% if not loop.last %} · {% endif %}{% endfor %}</div>
+            </div>
+          {% else %}
+            <div class="small">No judge verdicts (gates failed or judges disabled).</div>
+          {% endfor %}
+        </details>
+      {% endif %}
+    </div>
+  {% endfor %}
+
+  {# ---------------------- 10. APPENDIX ---------------------- #}
+  <h2>Appendix — Provenance</h2>
+  <div class="card">
+    <h3>Tool versions</h3>
+    <div class="kv mono">
+      {% for k, v in report.manifest.tool_versions.items() %}
+        <div class="k">{{ k }}</div><div class="v">{{ v }}</div>
+      {% endfor %}
+    </div>
+    <h3 style="margin-top:14px;">Judge prompt hashes</h3>
+    <div class="kv mono">
+      {% for k, v in report.manifest.judge_prompts_sha256.items() %}
+        <div class="k">{{ k }}</div><div class="v">sha256:{{ v[:16] }}…</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <footer>{{ cfg.confidentiality_footer }}</footer>
+</div>
+</body>
+</html>

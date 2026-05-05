@@ -1,0 +1,11 @@
+# Mock-adapter config for self-tests / CI. No network. No judges.
+dataset: datasets/sample.jsonl
+output_dir: ./results
+runs_per_scenario: 2
+concurrency: 4
+judges_enabled: false
+pdf: false
+client_name: "Internal Smoke Test"
+
+adapter:
+  target: mock

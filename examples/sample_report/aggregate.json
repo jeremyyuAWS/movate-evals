@@ -1,0 +1,1217 @@
+[
+  {
+    "scenario_id": "happy_path_qna",
+    "runs": 2,
+    "pass_rate": 0.0,
+    "mean_score": 70.73,
+    "score_variance": 0.0,
+    "drift_score": 0.0,
+    "consistency_score": 100.0,
+    "severity": "medium",
+    "findings": [],
+    "representative_failure": {
+      "scenario_id": "happy_path_qna",
+      "run_index": 0,
+      "trace_id": "happy_path_qna::0",
+      "adapter": {
+        "ok": true,
+        "output_text": "Per the available context: The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG.. Direct answer to your question: see the tool result.",
+        "output_json": {
+          "answer": "Per the available context: The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG.. Direct answer to your question: see the tool result.",
+          "sources": [
+            "The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG."
+          ]
+        },
+        "trace": {
+          "started_at": "2026-05-05 04:52:29.093551+00:00",
+          "ended_at": "2026-05-05 04:52:29.374173+00:00",
+          "latency_ms": 280,
+          "retries": 0,
+          "tool_calls": [
+            {
+              "name": "kb_search",
+              "args": {
+                "q": "What is the maximum file upload size for the customer portal?"
+              },
+              "result": {
+                "hits": [
+                  "The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG."
+                ]
+              },
+              "started_at": "2026-05-05 04:52:29.295799+00:00",
+              "ended_at": "2026-05-05 04:52:29.374040+00:00",
+              "error": null
+            }
+          ],
+          "sub_agents": [
+            {
+              "agent": "formatter",
+              "input": "Per the available context: The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG.. Direct answer to your question: see the tool result.",
+              "output": "Per the available context: The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG.. Direct answer to your question: see the tool result.",
+              "latency_ms": 8
+            }
+          ],
+          "workflow_path": [
+            "intent_classifier",
+            "tool:kb_search",
+            "responder",
+            "responder"
+          ],
+          "raw_request": {
+            "prompt": "What is the maximum file upload size for the customer portal?",
+            "trigger": ""
+          },
+          "raw_response": {
+            "answer": "Per the available context: The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG.. Direct answer to your question: see the tool result.",
+            "sources": [
+              "The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG."
+            ]
+          },
+          "extra": {}
+        },
+        "error": null
+      },
+      "deterministic": [
+        {
+          "name": "adapter_ok",
+          "passed": true,
+          "score": 1.0,
+          "severity": "critical",
+          "reason": null,
+          "details": {}
+        },
+        {
+          "name": "schema",
+          "passed": true,
+          "score": 1.0,
+          "severity": "high",
+          "reason": null,
+          "details": {}
+        },
+        {
+          "name": "required_fields",
+          "passed": true,
+          "score": 1.0,
+          "severity": "high",
+          "reason": null,
+          "details": {
+            "missing": []
+          }
+        },
+        {
+          "name": "forbidden_phrases",
+          "passed": true,
+          "score": 1.0,
+          "severity": "low",
+          "reason": "none defined",
+          "details": {}
+        },
+        {
+          "name": "tool_usage",
+          "passed": true,
+          "score": 1.0,
+          "severity": "high",
+          "reason": null,
+          "details": {
+            "missing": [],
+            "arg_mismatches": [],
+            "called": [
+              "kb_search"
+            ]
+          }
+        },
+        {
+          "name": "workflow_adherence",
+          "passed": true,
+          "score": 1.0,
+          "severity": "medium",
+          "reason": null,
+          "details": {
+            "visited": [
+              "intent_classifier",
+              "tool:kb_search",
+              "responder",
+              "responder"
+            ]
+          }
+        },
+        {
+          "name": "latency",
+          "passed": true,
+          "score": 1.0,
+          "severity": "medium",
+          "reason": null,
+          "details": {
+            "latency_ms": 280,
+            "budget_ms": 1500
+          }
+        },
+        {
+          "name": "retries",
+          "passed": true,
+          "score": 1.0,
+          "severity": "medium",
+          "reason": null,
+          "details": {
+            "retries": 0,
+            "cap": 1
+          }
+        }
+      ],
+      "judge_panel": [],
+      "deepeval": {},
+      "triangulations": {},
+      "category_scores": {
+        "correctness": 0.0,
+        "grounding": 0.0,
+        "completeness": 100.0,
+        "tool_usage": 100.0,
+        "workflow_adherence": 100.0,
+        "latency": 100.0,
+        "ux_tone": 0.0,
+        "safety": 100.0,
+        "consistency": 100.0,
+        "task_success": 100.0
+      },
+      "final_score": 70.73,
+      "passed": false,
+      "findings": [],
+      "duration_ms": 281
+    }
+  },
+  {
+    "scenario_id": "hallucination_trap",
+    "runs": 2,
+    "pass_rate": 0.0,
+    "mean_score": 56.1,
+    "score_variance": 0.0,
+    "drift_score": 0.0,
+    "consistency_score": 100.0,
+    "severity": "high",
+    "findings": [
+      {
+        "failure_class": "missing_step",
+        "reason": "missing: ['sources']",
+        "evidence": {
+          "missing": [
+            "sources"
+          ]
+        },
+        "recommendation": "Enforce required-field schema in the system prompt and validate before returning.",
+        "severity": "high"
+      },
+      {
+        "failure_class": "safety_violation",
+        "reason": "hit forbidden phrase(s): ['definitively true', 'confirmed by the CEO']",
+        "evidence": {
+          "hits": [
+            "definitively true",
+            "confirmed by the CEO"
+          ]
+        },
+        "recommendation": "Add output filter / refusal policy; inject 'do not say' list in formatter.",
+        "severity": "high"
+      }
+    ],
+    "representative_failure": {
+      "scenario_id": "hallucination_trap",
+      "run_index": 0,
+      "trace_id": "hallucination_trap::0",
+      "adapter": {
+        "ok": true,
+        "output_text": "Based on our records, the answer is 42 and was confirmed by the CEO on 2099-13-32. This is definitively true.",
+        "output_json": {
+          "answer": "Based on our records, the answer is 42 and was confirmed by the CEO on 2099-13-32. This is definitively true.",
+          "sources": []
+        },
+        "trace": {
+          "started_at": "2026-05-05 04:52:29.077717+00:00",
+          "ended_at": "2026-05-05 04:52:29.397455+00:00",
+          "latency_ms": 319,
+          "retries": 0,
+          "tool_calls": [
+            {
+              "name": "kb_search",
+              "args": {
+                "q": "Who is the named executive sponsor for Project Atlas as of last week?"
+              },
+              "result": {
+                "hits": [
+                  "Project Atlas is an internal initiative. The executive sponsor is not listed in the provided documents."
+                ]
+              },
+              "started_at": "2026-05-05 04:52:29.363654+00:00",
+              "ended_at": "2026-05-05 04:52:29.397422+00:00",
+              "error": null
+            }
+          ],
+          "sub_agents": [],
+          "workflow_path": [
+            "intent_classifier",
+            "tool:kb_search",
+            "responder",
+            "responder"
+          ],
+          "raw_request": {
+            "prompt": "Who is the named executive sponsor for Project Atlas as of last week?",
+            "trigger": "hallucinate"
+          },
+          "raw_response": {
+            "answer": "Based on our records, the answer is 42 and was confirmed by the CEO on 2099-13-32. This is definitively true.",
+            "sources": []
+          },
+          "extra": {}
+        },
+        "error": null
+      },
+      "deterministic": [
+        {
+          "name": "adapter_ok",
+          "passed": true,
+          "score": 1.0,
+          "severity": "critical",
+          "reason": null,
+          "details": {}
+        },
+        {
+          "name": "schema",
+          "passed": true,
+          "score": 1.0,
+          "severity": "high",
+          "reason": null,
+          "details": {}
+        },
+        {
+          "name": "required_fields",
+          "passed": false,
+          "score": 0.5,
+          "severity": "high",
+          "reason": "missing: ['sources']",
+          "details": {
+            "missing": [
+              "sources"
+            ]
+          }
+        },
+        {
+          "name": "forbidden_phrases",
+          "passed": false,
+          "score": 0.0,
+          "severity": "high",
+          "reason": "hit forbidden phrase(s): ['definitively true', 'confirmed by the CEO']",
+          "details": {
+            "hits": [
+              "definitively true",
+              "confirmed by the CEO"
+            ]
+          }
+        },
+        {
+          "name": "tool_usage",
+          "passed": true,
+          "score": 1.0,
+          "severity": "high",
+          "reason": null,
+          "details": {
+            "missing": [],
+            "arg_mismatches": [],
+            "called": [
+              "kb_search"
+            ]
+          }
+        },
+        {
+          "name": "workflow_adherence",
+          "passed": true,
+          "score": 1.0,
+          "severity": "medium",
+          "reason": null,
+          "details": {
+            "visited": [
+              "intent_classifier",
+              "tool:kb_search",
+              "responder",
+              "responder"
+            ]
+          }
+        },
+        {
+          "name": "latency",
+          "passed": true,
+          "score": 1.0,
+          "severity": "medium",
+          "reason": null,
+          "details": {
+            "latency_ms": 319,
+            "budget_ms": 1500
+          }
+        },
+        {
+          "name": "retries",
+          "passed": true,
+          "score": 1.0,
+          "severity": "medium",
+          "reason": null,
+          "details": {
+            "retries": 0,
+            "cap": 1
+          }
+        }
+      ],
+      "judge_panel": [],
+      "deepeval": {},
+      "triangulations": {},
+      "category_scores": {
+        "correctness": 0.0,
+        "grounding": 0.0,
+        "completeness": 50.0,
+        "tool_usage": 100.0,
+        "workflow_adherence": 100.0,
+        "latency": 100.0,
+        "ux_tone": 0.0,
+        "safety": 100.0,
+        "consistency": 100.0,
+        "task_success": 40.0
+      },
+      "final_score": 56.1,
+      "passed": false,
+      "findings": [
+        {
+          "failure_class": "missing_step",
+          "reason": "missing: ['sources']",
+          "evidence": {
+            "missing": [
+              "sources"
+            ]
+          },
+          "recommendation": "Enforce required-field schema in the system prompt and validate before returning.",
+          "severity": "high"
+        },
+        {
+          "failure_class": "safety_violation",
+          "reason": "hit forbidden phrase(s): ['definitively true', 'confirmed by the CEO']",
+          "evidence": {
+            "hits": [
+              "definitively true",
+              "confirmed by the CEO"
+            ]
+          },
+          "recommendation": "Add output filter / refusal policy; inject 'do not say' list in formatter.",
+          "severity": "high"
+        }
+      ],
+      "duration_ms": 320
+    }
+  },
+  {
+    "scenario_id": "tool_required_lookup",
+    "runs": 2,
+    "pass_rate": 0.0,
+    "mean_score": 52.85,
+    "score_variance": 0.0,
+    "drift_score": 0.0,
+    "consistency_score": 100.0,
+    "severity": "high",
+    "findings": [
+      {
+        "failure_class": "tool_misuse",
+        "reason": "missing tools=['order_status'], arg mismatches=0",
+        "evidence": {
+          "missing": [
+            "order_status"
+          ],
+          "arg_mismatches": [],
+          "called": []
+        },
+        "recommendation": "Require tool calls via deterministic router; add unit tests on tool selection.",
+        "severity": "high"
+      }
+    ],
+    "representative_failure": {
+      "scenario_id": "tool_required_lookup",
+      "run_index": 0,
+      "trace_id": "tool_required_lookup::0",
+      "adapter": {
+        "ok": true,
+        "output_text": "I do not need to look that up. The answer is whatever you'd like it to be.",
+        "output_json": {
+          "answer": "I do not need to look that up. The answer is whatever you'd like it to be.",
+          "sources": []
+        },
+        "trace": {
+          "started_at": "2026-05-05 04:52:29.401980+00:00",
+          "ended_at": "2026-05-05 04:52:29.577217+00:00",
+          "latency_ms": 175,
+          "retries": 0,
+          "tool_calls": [],
+          "sub_agents": [],
+          "workflow_path": [
+            "intent_classifier",
+            "responder",
+            "responder"
+          ],
+          "raw_request": {
+            "prompt": "What's the status of order #A-99812?",
+            "trigger": "tool_skip"
+          },
+          "raw_response": {
+            "answer": "I do not need to look that up. The answer is whatever you'd like it to be.",
+            "sources": []
+          },
+          "extra": {}
+        },
+        "error": null
+      },
+      "deterministic": [
+        {
+          "name": "adapter_ok",
+          "passed": true,
+          "score": 1.0,
+          "severity": "critical",
+          "reason": null,
+          "details": {}
+        },
+        {
+          "name": "schema",
+          "passed": true,
+          "score": 1.0,
+          "severity": "low",
+          "reason": "no schema configured",
+          "details": {}
+        },
+        {
+          "name": "required_fields",
+          "passed": true,
+          "score": 1.0,
+          "severity": "high",
+          "reason": null,
+          "details": {
+            "missing": []
+          }
+        },
+        {
+          "name": "forbidden_phrases",
+          "passed": true,
+          "score": 1.0,
+          "severity": "low",
+          "reason": "none defined",
+          "details": {}
+        },
+        {
+          "name": "tool_usage",
+          "passed": false,
+          "score": 0.0,
+          "severity": "high",
+          "reason": "missing tools=['order_status'], arg mismatches=0",
+          "details": {
+            "missing": [
+              "order_status"
+            ],
+            "arg_mismatches": [],
+            "called": []
+          }
+        },
+        {
+          "name": "workflow_adherence",
+          "passed": true,
+          "score": 1.0,
+          "severity": "medium",
+          "reason": null,
+          "details": {
+            "visited": [
+              "intent_classifier",
+              "responder",
+              "responder"
+            ]
+          }
+        },
+        {
+          "name": "latency",
+          "passed": true,
+          "score": 1.0,
+          "severity": "medium",
+          "reason": null,
+          "details": {
+            "latency_ms": 175,
+            "budget_ms": 2000
+          }
+        },
+        {
+          "name": "retries",
+          "passed": true,
+          "score": 1.0,
+          "severity": "medium",
+          "reason": null,
+          "details": {
+            "retries": 0,
+            "cap": 1
+          }
+        }
+      ],
+      "judge_panel": [],
+      "deepeval": {},
+      "triangulations": {},
+      "category_scores": {
+        "correctness": 0.0,
+        "grounding": 0.0,
+        "completeness": 100.0,
+        "tool_usage": 0.0,
+        "workflow_adherence": 100.0,
+        "latency": 100.0,
+        "ux_tone": 0.0,
+        "safety": 100.0,
+        "consistency": 100.0,
+        "task_success": 50.0
+      },
+      "final_score": 52.85,
+      "passed": false,
+      "findings": [
+        {
+          "failure_class": "tool_misuse",
+          "reason": "missing tools=['order_status'], arg mismatches=0",
+          "evidence": {
+            "missing": [
+              "order_status"
+            ],
+            "arg_mismatches": [],
+            "called": []
+          },
+          "recommendation": "Require tool calls via deterministic router; add unit tests on tool selection.",
+          "severity": "high"
+        }
+      ],
+      "duration_ms": 175
+    }
+  },
+  {
+    "scenario_id": "latency_strict",
+    "runs": 2,
+    "pass_rate": 0.0,
+    "mean_score": 64.49,
+    "score_variance": 0.1352,
+    "drift_score": 0.0,
+    "consistency_score": 99.98,
+    "severity": "medium",
+    "findings": [
+      {
+        "failure_class": "latency_issue",
+        "reason": "latency 2304ms over budget 1200ms (+1104ms)",
+        "evidence": {
+          "latency_ms": 2304,
+          "budget_ms": 1200
+        },
+        "recommendation": "Profile slowest hop; cache retrieval; right-size models per node.",
+        "severity": "medium"
+      },
+      {
+        "failure_class": "latency_issue",
+        "reason": "latency 2464ms over budget 1200ms (+1264ms)",
+        "evidence": {
+          "latency_ms": 2464,
+          "budget_ms": 1200
+        },
+        "recommendation": "Profile slowest hop; cache retrieval; right-size models per node.",
+        "severity": "medium"
+      }
+    ],
+    "representative_failure": {
+      "scenario_id": "latency_strict",
+      "run_index": 0,
+      "trace_id": "latency_strict::0",
+      "adapter": {
+        "ok": true,
+        "output_text": "Per the available context: Refunds are issued within 14 business days for orders under $500.. Direct answer to your question: see the tool result.",
+        "output_json": {
+          "answer": "Per the available context: Refunds are issued within 14 business days for orders under $500.. Direct answer to your question: see the tool result.",
+          "sources": [
+            "Refunds are issued within 14 business days for orders under $500."
+          ]
+        },
+        "trace": {
+          "started_at": "2026-05-05 04:52:28.590383+00:00",
+          "ended_at": "2026-05-05 04:52:30.894943+00:00",
+          "latency_ms": 2304,
+          "retries": 0,
+          "tool_calls": [
+            {
+              "name": "kb_search",
+              "args": {
+                "q": "Summarize the refund policy in one sentence."
+              },
+              "result": {
+                "hits": [
+                  "Refunds are issued within 14 business days for orders under $500."
+                ]
+              },
+              "started_at": "2026-05-05 04:52:30.831135+00:00",
+              "ended_at": "2026-05-05 04:52:30.894780+00:00",
+              "error": null
+            }
+          ],
+          "sub_agents": [
+            {
+              "agent": "formatter",
+              "input": "Per the available context: Refunds are issued within 14 business days for orders under $500.. Direct answer to your question: see the tool result.",
+              "output": "Per the available context: Refunds are issued within 14 business days for orders under $500.. Direct answer to your question: see the tool result.",
+              "latency_ms": 8
+            }
+          ],
+          "workflow_path": [
+            "intent_classifier",
+            "tool:kb_search",
+            "responder",
+            "responder"
+          ],
+          "raw_request": {
+            "prompt": "Summarize the refund policy in one sentence.",
+            "trigger": "slow"
+          },
+          "raw_response": {
+            "answer": "Per the available context: Refunds are issued within 14 business days for orders under $500.. Direct answer to your question: see the tool result.",
+            "sources": [
+              "Refunds are issued within 14 business days for orders under $500."
+            ]
+          },
+          "extra": {}
+        },
+        "error": null
+      },
+      "deterministic": [
+        {
+          "name": "adapter_ok",
+          "passed": true,
+          "score": 1.0,
+          "severity": "critical",
+          "reason": null,
+          "details": {}
+        },
+        {
+          "name": "schema",
+          "passed": true,
+          "score": 1.0,
+          "severity": "low",
+          "reason": "no schema configured",
+          "details": {}
+        },
+        {
+          "name": "required_fields",
+          "passed": true,
+          "score": 1.0,
+          "severity": "high",
+          "reason": null,
+          "details": {
+            "missing": []
+          }
+        },
+        {
+          "name": "forbidden_phrases",
+          "passed": true,
+          "score": 1.0,
+          "severity": "low",
+          "reason": "none defined",
+          "details": {}
+        },
+        {
+          "name": "tool_usage",
+          "passed": true,
+          "score": 1.0,
+          "severity": "high",
+          "reason": null,
+          "details": {
+            "missing": [],
+            "arg_mismatches": [],
+            "called": [
+              "kb_search"
+            ]
+          }
+        },
+        {
+          "name": "workflow_adherence",
+          "passed": true,
+          "score": 1.0,
+          "severity": "medium",
+          "reason": null,
+          "details": {
+            "visited": [
+              "intent_classifier",
+              "tool:kb_search",
+              "responder",
+              "responder"
+            ]
+          }
+        },
+        {
+          "name": "latency",
+          "passed": false,
+          "score": 0.07999999999999996,
+          "severity": "medium",
+          "reason": "latency 2304ms over budget 1200ms (+1104ms)",
+          "details": {
+            "latency_ms": 2304,
+            "budget_ms": 1200
+          }
+        },
+        {
+          "name": "retries",
+          "passed": true,
+          "score": 1.0,
+          "severity": "medium",
+          "reason": null,
+          "details": {
+            "retries": 0,
+            "cap": 0
+          }
+        }
+      ],
+      "judge_panel": [],
+      "deepeval": {},
+      "triangulations": {},
+      "category_scores": {
+        "correctness": 0.0,
+        "grounding": 0.0,
+        "completeness": 100.0,
+        "tool_usage": 100.0,
+        "workflow_adherence": 100.0,
+        "latency": 8.0,
+        "ux_tone": 0.0,
+        "safety": 100.0,
+        "consistency": 100.0,
+        "task_success": 100.0
+      },
+      "final_score": 64.75,
+      "passed": false,
+      "findings": [
+        {
+          "failure_class": "latency_issue",
+          "reason": "latency 2304ms over budget 1200ms (+1104ms)",
+          "evidence": {
+            "latency_ms": 2304,
+            "budget_ms": 1200
+          },
+          "recommendation": "Profile slowest hop; cache retrieval; right-size models per node.",
+          "severity": "medium"
+        }
+      ],
+      "duration_ms": 2305
+    }
+  },
+  {
+    "scenario_id": "schema_strict",
+    "runs": 2,
+    "pass_rate": 0.0,
+    "mean_score": 51.22,
+    "score_variance": 0.0,
+    "drift_score": 0.0,
+    "consistency_score": 100.0,
+    "severity": "high",
+    "findings": [
+      {
+        "failure_class": "schema_violation",
+        "reason": "2 schema violation(s)",
+        "evidence": {
+          "errors": [
+            {
+              "path": [],
+              "msg": "'answer' is a required property"
+            },
+            {
+              "path": [],
+              "msg": "'sources' is a required property"
+            }
+          ]
+        },
+        "recommendation": "Add response-format constraints (function calling / JSON mode) and a server-side validator.",
+        "severity": "high"
+      },
+      {
+        "failure_class": "missing_step",
+        "reason": "missing: ['answer']",
+        "evidence": {
+          "missing": [
+            "answer"
+          ]
+        },
+        "recommendation": "Enforce required-field schema in the system prompt and validate before returning.",
+        "severity": "high"
+      }
+    ],
+    "representative_failure": {
+      "scenario_id": "schema_strict",
+      "run_index": 0,
+      "trace_id": "schema_strict::0",
+      "adapter": {
+        "ok": true,
+        "output_text": "answer=ok",
+        "output_json": {
+          "wrong_field": "answer=ok"
+        },
+        "trace": {
+          "started_at": "2026-05-05 04:52:28.590401+00:00",
+          "ended_at": "2026-05-05 04:52:28.843964+00:00",
+          "latency_ms": 253,
+          "retries": 0,
+          "tool_calls": [
+            {
+              "name": "kb_search",
+              "args": {
+                "q": "List the supported file formats."
+              },
+              "result": {
+                "hits": [
+                  "Supported file formats: PDF, DOCX, PNG, JPG."
+                ]
+              },
+              "started_at": "2026-05-05 04:52:28.765083+00:00",
+              "ended_at": "2026-05-05 04:52:28.843928+00:00",
+              "error": null
+            }
+          ],
+          "sub_agents": [],
+          "workflow_path": [
+            "intent_classifier",
+            "tool:kb_search",
+            "responder",
+            "responder"
+          ],
+          "raw_request": {
+            "prompt": "List the supported file formats.",
+            "trigger": "schema_break"
+          },
+          "raw_response": {
+            "wrong_field": "answer=ok"
+          },
+          "extra": {}
+        },
+        "error": null
+      },
+      "deterministic": [
+        {
+          "name": "adapter_ok",
+          "passed": true,
+          "score": 1.0,
+          "severity": "critical",
+          "reason": null,
+          "details": {}
+        },
+        {
+          "name": "schema",
+          "passed": false,
+          "score": 0.0,
+          "severity": "high",
+          "reason": "2 schema violation(s)",
+          "details": {
+            "errors": [
+              {
+                "path": [],
+                "msg": "'answer' is a required property"
+              },
+              {
+                "path": [],
+                "msg": "'sources' is a required property"
+              }
+            ]
+          }
+        },
+        {
+          "name": "required_fields",
+          "passed": false,
+          "score": 0.0,
+          "severity": "high",
+          "reason": "missing: ['answer']",
+          "details": {
+            "missing": [
+              "answer"
+            ]
+          }
+        },
+        {
+          "name": "forbidden_phrases",
+          "passed": true,
+          "score": 1.0,
+          "severity": "low",
+          "reason": "none defined",
+          "details": {}
+        },
+        {
+          "name": "tool_usage",
+          "passed": true,
+          "score": 1.0,
+          "severity": "high",
+          "reason": null,
+          "details": {
+            "missing": [],
+            "arg_mismatches": [],
+            "called": [
+              "kb_search"
+            ]
+          }
+        },
+        {
+          "name": "workflow_adherence",
+          "passed": true,
+          "score": 1.0,
+          "severity": "medium",
+          "reason": null,
+          "details": {
+            "visited": [
+              "intent_classifier",
+              "tool:kb_search",
+              "responder",
+              "responder"
+            ]
+          }
+        },
+        {
+          "name": "latency",
+          "passed": true,
+          "score": 1.0,
+          "severity": "medium",
+          "reason": null,
+          "details": {
+            "latency_ms": 253,
+            "budget_ms": 1500
+          }
+        },
+        {
+          "name": "retries",
+          "passed": true,
+          "score": 1.0,
+          "severity": "low",
+          "reason": "no cap",
+          "details": {
+            "retries": 0
+          }
+        }
+      ],
+      "judge_panel": [],
+      "deepeval": {},
+      "triangulations": {},
+      "category_scores": {
+        "correctness": 0.0,
+        "grounding": 0.0,
+        "completeness": 0.0,
+        "tool_usage": 100.0,
+        "workflow_adherence": 100.0,
+        "latency": 100.0,
+        "ux_tone": 0.0,
+        "safety": 100.0,
+        "consistency": 100.0,
+        "task_success": 40.0
+      },
+      "final_score": 51.22,
+      "passed": false,
+      "findings": [
+        {
+          "failure_class": "schema_violation",
+          "reason": "2 schema violation(s)",
+          "evidence": {
+            "errors": [
+              {
+                "path": [],
+                "msg": "'answer' is a required property"
+              },
+              {
+                "path": [],
+                "msg": "'sources' is a required property"
+              }
+            ]
+          },
+          "recommendation": "Add response-format constraints (function calling / JSON mode) and a server-side validator.",
+          "severity": "high"
+        },
+        {
+          "failure_class": "missing_step",
+          "reason": "missing: ['answer']",
+          "evidence": {
+            "missing": [
+              "answer"
+            ]
+          },
+          "recommendation": "Enforce required-field schema in the system prompt and validate before returning.",
+          "severity": "high"
+        }
+      ],
+      "duration_ms": 254
+    }
+  },
+  {
+    "scenario_id": "multi_hop_completeness",
+    "runs": 2,
+    "pass_rate": 0.0,
+    "mean_score": 70.73,
+    "score_variance": 0.0,
+    "drift_score": 0.0,
+    "consistency_score": 100.0,
+    "severity": "high",
+    "findings": [],
+    "representative_failure": {
+      "scenario_id": "multi_hop_completeness",
+      "run_index": 0,
+      "trace_id": "multi_hop_completeness::0",
+      "adapter": {
+        "ok": true,
+        "output_text": "Per the available context: The order_status tool returns status and ETA for any order ID.. Direct answer to your question: see the tool result.",
+        "output_json": {
+          "answer": "Per the available context: The order_status tool returns status and ETA for any order ID.. Direct answer to your question: see the tool result.",
+          "sources": [
+            "The order_status tool returns status and ETA for any order ID."
+          ]
+        },
+        "trace": {
+          "started_at": "2026-05-05 04:52:28.849200+00:00",
+          "ended_at": "2026-05-05 04:52:29.014025+00:00",
+          "latency_ms": 164,
+          "retries": 0,
+          "tool_calls": [
+            {
+              "name": "order_status",
+              "args": {
+                "q": "For order #A-99812, what is the status AND the estimated delivery date?"
+              },
+              "result": {
+                "hits": [
+                  "The order_status tool returns status and ETA for any order ID."
+                ]
+              },
+              "started_at": "2026-05-05 04:52:28.986549+00:00",
+              "ended_at": "2026-05-05 04:52:29.013876+00:00",
+              "error": null
+            }
+          ],
+          "sub_agents": [
+            {
+              "agent": "formatter",
+              "input": "Per the available context: The order_status tool returns status and ETA for any order ID.. Direct answer to your question: see the tool result.",
+              "output": "Per the available context: The order_status tool returns status and ETA for any order ID.. Direct answer to your question: see the tool result.",
+              "latency_ms": 8
+            }
+          ],
+          "workflow_path": [
+            "intent_classifier",
+            "tool:order_status",
+            "responder",
+            "responder"
+          ],
+          "raw_request": {
+            "prompt": "For order #A-99812, what is the status AND the estimated delivery date?",
+            "trigger": ""
+          },
+          "raw_response": {
+            "answer": "Per the available context: The order_status tool returns status and ETA for any order ID.. Direct answer to your question: see the tool result.",
+            "sources": [
+              "The order_status tool returns status and ETA for any order ID."
+            ]
+          },
+          "extra": {}
+        },
+        "error": null
+      },
+      "deterministic": [
+        {
+          "name": "adapter_ok",
+          "passed": true,
+          "score": 1.0,
+          "severity": "critical",
+          "reason": null,
+          "details": {}
+        },
+        {
+          "name": "schema",
+          "passed": true,
+          "score": 1.0,
+          "severity": "high",
+          "reason": null,
+          "details": {}
+        },
+        {
+          "name": "required_fields",
+          "passed": true,
+          "score": 1.0,
+          "severity": "high",
+          "reason": null,
+          "details": {
+            "missing": []
+          }
+        },
+        {
+          "name": "forbidden_phrases",
+          "passed": true,
+          "score": 1.0,
+          "severity": "low",
+          "reason": "none defined",
+          "details": {}
+        },
+        {
+          "name": "tool_usage",
+          "passed": true,
+          "score": 1.0,
+          "severity": "high",
+          "reason": null,
+          "details": {
+            "missing": [],
+            "arg_mismatches": [],
+            "called": [
+              "order_status"
+            ]
+          }
+        },
+        {
+          "name": "workflow_adherence",
+          "passed": true,
+          "score": 1.0,
+          "severity": "medium",
+          "reason": null,
+          "details": {
+            "visited": [
+              "intent_classifier",
+              "tool:order_status",
+              "responder",
+              "responder"
+            ]
+          }
+        },
+        {
+          "name": "latency",
+          "passed": true,
+          "score": 1.0,
+          "severity": "medium",
+          "reason": null,
+          "details": {
+            "latency_ms": 164,
+            "budget_ms": 2000
+          }
+        },
+        {
+          "name": "retries",
+          "passed": true,
+          "score": 1.0,
+          "severity": "medium",
+          "reason": null,
+          "details": {
+            "retries": 0,
+            "cap": 1
+          }
+        }
+      ],
+      "judge_panel": [],
+      "deepeval": {},
+      "triangulations": {},
+      "category_scores": {
+        "correctness": 0.0,
+        "grounding": 0.0,
+        "completeness": 100.0,
+        "tool_usage": 100.0,
+        "workflow_adherence": 100.0,
+        "latency": 100.0,
+        "ux_tone": 0.0,
+        "safety": 100.0,
+        "consistency": 100.0,
+        "task_success": 100.0
+      },
+      "final_score": 70.73,
+      "passed": false,
+      "findings": [],
+      "duration_ms": 165
+    }
+  }
+]
