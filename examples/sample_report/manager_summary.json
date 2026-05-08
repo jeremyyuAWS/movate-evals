@@ -1,0 +1,95 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-05-05T05:57:00.033762Z",
+  "agent": {
+    "id": "mock",
+    "definition_sha256": null,
+    "backend": "mock"
+  },
+  "summary": {
+    "test_cases_evaluated": 6,
+    "test_cases_passed": 0,
+    "test_cases_failed": 6,
+    "correctness": 0.0,
+    "accuracy": 0.0,
+    "judges_enabled": false
+  },
+  "expected_vs_actual": [
+    {
+      "test_case_id": "happy_path_qna",
+      "input": "What is the maximum file upload size for the customer portal?",
+      "expected": "25 MB per file. Allowed formats include PDF, DOCX, PNG, JPG.",
+      "actual": "Per the available context: The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG.. Direct answer to your question: see the tool result.",
+      "match": false,
+      "match_score": 0.7073,
+      "match_reason": "Failed checks but no specific finding recorded.",
+      "severity": "medium",
+      "latency_ms": 245
+    },
+    {
+      "test_case_id": "hallucination_trap",
+      "input": "Who is the named executive sponsor for Project Atlas as of last week?",
+      "expected": "I don't have information on the named executive sponsor in the provided documents.",
+      "actual": "Based on our records, the answer is 42 and was confirmed by the CEO on 2099-13-32. This is definitively true.",
+      "match": false,
+      "match_score": 0.561,
+      "match_reason": "missing_step: missing: ['sources']",
+      "severity": "high",
+      "latency_ms": 182
+    },
+    {
+      "test_case_id": "tool_required_lookup",
+      "input": "What's the status of order #A-99812?",
+      "expected": "Agent must call the order_status tool; not allowed to guess. \u00b7 Output must contain fields: answer",
+      "actual": "I do not need to look that up. The answer is whatever you'd like it to be.",
+      "match": false,
+      "match_score": 0.5285,
+      "match_reason": "tool_misuse: missing tools=['order_status'], arg mismatches=0",
+      "severity": "high",
+      "latency_ms": 141
+    },
+    {
+      "test_case_id": "latency_strict",
+      "input": "Summarize the refund policy in one sentence.",
+      "expected": "Refunds for orders under $500 are issued within 14 business days.",
+      "actual": "Per the available context: Refunds are issued within 14 business days for orders under $500.. Direct answer to your question: see the tool result.",
+      "match": false,
+      "match_score": 0.6423,
+      "match_reason": "latency_issue: latency 2404ms over budget 1200ms (+1204ms)",
+      "severity": "medium",
+      "latency_ms": 2404
+    },
+    {
+      "test_case_id": "schema_strict",
+      "input": "List the supported file formats.",
+      "expected": "PDF, DOCX, PNG, JPG.",
+      "actual": "answer=ok",
+      "match": false,
+      "match_score": 0.5122,
+      "match_reason": "schema_violation: 2 schema violation(s)",
+      "severity": "high",
+      "latency_ms": 146
+    },
+    {
+      "test_case_id": "multi_hop_completeness",
+      "input": "For order #A-99812, what is the status AND the estimated delivery date?",
+      "expected": "Two-part question; both parts must be answered with tool support. \u00b7 Output must contain fields: answer, sources",
+      "actual": "Per the available context: The order_status tool returns status and ETA for any order ID.. Direct answer to your question: see the tool result.",
+      "match": false,
+      "match_score": 0.7073,
+      "match_reason": "Failed checks but no specific finding recorded.",
+      "severity": "high",
+      "latency_ms": 321
+    }
+  ],
+  "provenance": {
+    "schema_version_eval": "1.0",
+    "methodology_version": "1.0",
+    "mdk_eval_version": "0.1.0",
+    "manifest_sha256": null,
+    "dataset_sha256": "50f9afc6790f9a926d68175225cfdd2dab5acd49e78d3ce5744202488ab8f07b",
+    "config_sha256": "ce322b1eb3d79e244511857b5e0df532bac8c1f04d4d5c0e7d8c0fbc74c721bd",
+    "judge_models": {},
+    "runs_per_scenario": 2
+  }
+}

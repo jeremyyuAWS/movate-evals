@@ -12,9 +12,9 @@
       ]
     },
     "trace": {
-      "started_at": "2026-05-05T04:52:29.093551Z",
-      "ended_at": "2026-05-05T04:52:29.374173Z",
-      "latency_ms": 280,
+      "started_at": "2026-05-05T05:56:55.633525Z",
+      "ended_at": "2026-05-05T05:56:55.878602Z",
+      "latency_ms": 245,
       "retries": 0,
       "tool_calls": [
         {
@@ -27,8 +27,8 @@
               "The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG."
             ]
           },
-          "started_at": "2026-05-05T04:52:29.295799Z",
-          "ended_at": "2026-05-05T04:52:29.374040Z",
+          "started_at": "2026-05-05T05:56:55.819392Z",
+          "ended_at": "2026-05-05T05:56:55.878569Z",
           "error": null
         }
       ],
@@ -131,7 +131,7 @@
       "severity": "medium",
       "reason": null,
       "details": {
-        "latency_ms": 280,
+        "latency_ms": 245,
         "budget_ms": 1500
       }
     },
@@ -165,5 +165,5 @@
   "final_score": 70.73,
   "passed": false,
   "findings": [],
-  "duration_ms": 281
+  "duration_ms": 245
 }

@@ -1,7 +1,7 @@
 scenario_id,severity,runs,pass_rate,mean_score,score_variance,consistency_score,drift_score,failure_classes,mean_latency_ms,min_latency_ms,max_latency_ms,mean_retries
-happy_path_qna,medium,2,0.0,70.73,0.0,100.0,0.0,,273,266,280,0.0
-hallucination_trap,high,2,0.0,56.1,0.0,100.0,0.0,missing_step|safety_violation,340,319,362,0.0
-tool_required_lookup,high,2,0.0,52.85,0.0,100.0,0.0,tool_misuse,193,175,211,0.5
-latency_strict,medium,2,0.0,64.49,0.1352,99.98,0.0,latency_issue,2384,2304,2464,0.0
-schema_strict,high,2,0.0,51.22,0.0,100.0,0.0,missing_step|schema_violation,292,253,332,0.0
-multi_hop_completeness,high,2,0.0,70.73,0.0,100.0,0.0,,148,133,164,0.0
+happy_path_qna,medium,2,0.0,70.73,0.0,100.0,0.0,,268,245,290,0.0
+hallucination_trap,high,2,0.0,56.1,0.0,100.0,0.0,missing_step|safety_violation,164,147,182,0.0
+tool_required_lookup,high,2,0.0,52.85,0.0,100.0,0.0,tool_misuse,147,141,153,0.0
+latency_strict,medium,2,0.0,64.23,0.0,100.0,0.0,latency_issue,2942,2404,3479,0.5
+schema_strict,high,2,0.0,51.22,0.0,100.0,0.0,missing_step|schema_violation,170,146,193,0.0
+multi_hop_completeness,high,2,0.0,70.73,0.0,100.0,0.0,,268,216,321,0.5

@@ -1,8 +1,8 @@
 {
   "manifest": {
-    "run_id": "run_2026-05-05T04-52-28Z",
-    "started_at": "2026-05-05T04:52:28.581636Z",
-    "ended_at": "2026-05-05T04:52:31.497531Z",
+    "run_id": "run_2026-05-05T05-56-55Z",
+    "started_at": "2026-05-05T05:56:55.478219Z",
+    "ended_at": "2026-05-05T05:56:59.123138Z",
     "target": "mock",
     "endpoint": null,
     "runs_per_scenario": 2,
@@ -33,9 +33,9 @@
     },
     "mdk_eval_version": "0.1.0"
   },
-  "overall_score": 61.02,
-  "confidence": 0.9999,
-  "variance": 0.0225,
+  "overall_score": 60.98,
+  "confidence": 1.0,
+  "variance": 0.0,
   "status": "not_ready",
   "scorecard": {
     "task_success": 71.67,
@@ -45,10 +45,10 @@
     "tool_usage": 83.33,
     "workflow_adherence": 100.0,
     "consistency": 100.0,
-    "latency": 84.0,
+    "latency": 83.33,
     "safety": 100.0,
     "ux_tone": 0.0,
-    "overall": 61.02
+    "overall": 60.98
   },
   "headline": "61/100 \u2014 Not Ready (0/6 scenarios passing) \u00b7 confidence 1.00",
   "key_findings": [
@@ -82,9 +82,9 @@
             ]
           },
           "trace": {
-            "started_at": "2026-05-05T04:52:29.093551Z",
-            "ended_at": "2026-05-05T04:52:29.374173Z",
-            "latency_ms": 280,
+            "started_at": "2026-05-05T05:56:55.633525Z",
+            "ended_at": "2026-05-05T05:56:55.878602Z",
+            "latency_ms": 245,
             "retries": 0,
             "tool_calls": [
               {
@@ -97,8 +97,8 @@
                     "The Customer Portal accepts file uploads up to 25 MB per file. Allowed formats: PDF, DOCX, PNG, JPG."
                   ]
                 },
-                "started_at": "2026-05-05T04:52:29.295799Z",
-                "ended_at": "2026-05-05T04:52:29.374040Z",
+                "started_at": "2026-05-05T05:56:55.819392Z",
+                "ended_at": "2026-05-05T05:56:55.878569Z",
                 "error": null
               }
             ],
@@ -201,7 +201,7 @@
             "severity": "medium",
             "reason": null,
             "details": {
-              "latency_ms": 280,
+              "latency_ms": 245,
               "budget_ms": 1500
             }
           },
@@ -235,7 +235,7 @@
         "final_score": 70.73,
         "passed": false,
         "findings": [],
-        "duration_ms": 281
+        "duration_ms": 245
       }
     },
     {
@@ -284,9 +284,9 @@
             "sources": []
           },
           "trace": {
-            "started_at": "2026-05-05T04:52:29.077717Z",
-            "ended_at": "2026-05-05T04:52:29.397455Z",
-            "latency_ms": 319,
+            "started_at": "2026-05-05T05:56:55.673058Z",
+            "ended_at": "2026-05-05T05:56:55.821060Z",
+            "latency_ms": 147,
             "retries": 0,
             "tool_calls": [
               {
@@ -299,8 +299,8 @@
                     "Project Atlas is an internal initiative. The executive sponsor is not listed in the provided documents."
                   ]
                 },
-                "started_at": "2026-05-05T04:52:29.363654Z",
-                "ended_at": "2026-05-05T04:52:29.397422Z",
+                "started_at": "2026-05-05T05:56:55.780837Z",
+                "ended_at": "2026-05-05T05:56:55.821056Z",
                 "error": null
               }
             ],
@@ -401,7 +401,7 @@
             "severity": "medium",
             "reason": null,
             "details": {
-              "latency_ms": 319,
+              "latency_ms": 147,
               "budget_ms": 1500
             }
           },
@@ -459,7 +459,7 @@
             "severity": "high"
           }
         ],
-        "duration_ms": 320
+        "duration_ms": 148
       }
     },
     {
@@ -498,9 +498,9 @@
             "sources": []
           },
           "trace": {
-            "started_at": "2026-05-05T04:52:29.401980Z",
-            "ended_at": "2026-05-05T04:52:29.577217Z",
-            "latency_ms": 175,
+            "started_at": "2026-05-05T05:56:55.822367Z",
+            "ended_at": "2026-05-05T05:56:55.975632Z",
+            "latency_ms": 153,
             "retries": 0,
             "tool_calls": [],
             "sub_agents": [],
@@ -591,7 +591,7 @@
             "severity": "medium",
             "reason": null,
             "details": {
-              "latency_ms": 175,
+              "latency_ms": 153,
               "budget_ms": 2000
             }
           },
@@ -639,24 +639,24 @@
             "severity": "high"
           }
         ],
-        "duration_ms": 175
+        "duration_ms": 153
       }
     },
     {
       "scenario_id": "latency_strict",
       "runs": 2,
       "pass_rate": 0.0,
-      "mean_score": 64.49,
-      "score_variance": 0.1352,
+      "mean_score": 64.23,
+      "score_variance": 0.0,
       "drift_score": 0.0,
-      "consistency_score": 99.98,
+      "consistency_score": 100.0,
       "severity": "medium",
       "findings": [
         {
           "failure_class": "latency_issue",
-          "reason": "latency 2304ms over budget 1200ms (+1104ms)",
+          "reason": "latency 2404ms over budget 1200ms (+1204ms)",
           "evidence": {
-            "latency_ms": 2304,
+            "latency_ms": 2404,
             "budget_ms": 1200
           },
           "recommendation": "Profile slowest hop; cache retrieval; right-size models per node.",
@@ -664,12 +664,22 @@
         },
         {
           "failure_class": "latency_issue",
-          "reason": "latency 2464ms over budget 1200ms (+1264ms)",
+          "reason": "latency 3479ms over budget 1200ms (+2279ms)",
           "evidence": {
-            "latency_ms": 2464,
+            "latency_ms": 3479,
             "budget_ms": 1200
           },
           "recommendation": "Profile slowest hop; cache retrieval; right-size models per node.",
+          "severity": "medium"
+        },
+        {
+          "failure_class": "latency_issue",
+          "reason": "retries 1 > cap 0",
+          "evidence": {
+            "retries": 1,
+            "cap": 0
+          },
+          "recommendation": "Investigate root cause of retried calls; add idempotency keys and circuit breakers.",
           "severity": "medium"
         }
       ],
@@ -687,9 +697,9 @@
             ]
           },
           "trace": {
-            "started_at": "2026-05-05T04:52:28.590383Z",
-            "ended_at": "2026-05-05T04:52:30.894943Z",
-            "latency_ms": 2304,
+            "started_at": "2026-05-05T05:56:55.977541Z",
+            "ended_at": "2026-05-05T05:56:58.381954Z",
+            "latency_ms": 2404,
             "retries": 0,
             "tool_calls": [
               {
@@ -702,8 +712,8 @@
                     "Refunds are issued within 14 business days for orders under $500."
                   ]
                 },
-                "started_at": "2026-05-05T04:52:30.831135Z",
-                "ended_at": "2026-05-05T04:52:30.894780Z",
+                "started_at": "2026-05-05T05:56:58.330103Z",
+                "ended_at": "2026-05-05T05:56:58.381895Z",
                 "error": null
               }
             ],
@@ -802,11 +812,11 @@
           {
             "name": "latency",
             "passed": false,
-            "score": 0.07999999999999996,
+            "score": 0.0,
             "severity": "medium",
-            "reason": "latency 2304ms over budget 1200ms (+1104ms)",
+            "reason": "latency 2404ms over budget 1200ms (+1204ms)",
             "details": {
-              "latency_ms": 2304,
+              "latency_ms": 2404,
               "budget_ms": 1200
             }
           },
@@ -831,27 +841,27 @@
           "completeness": 100.0,
           "tool_usage": 100.0,
           "workflow_adherence": 100.0,
-          "latency": 8.0,
+          "latency": 0.0,
           "ux_tone": 0.0,
           "safety": 100.0,
           "consistency": 100.0,
           "task_success": 100.0
         },
-        "final_score": 64.75,
+        "final_score": 64.23,
         "passed": false,
         "findings": [
           {
             "failure_class": "latency_issue",
-            "reason": "latency 2304ms over budget 1200ms (+1104ms)",
+            "reason": "latency 2404ms over budget 1200ms (+1204ms)",
             "evidence": {
-              "latency_ms": 2304,
+              "latency_ms": 2404,
               "budget_ms": 1200
             },
             "recommendation": "Profile slowest hop; cache retrieval; right-size models per node.",
             "severity": "medium"
           }
         ],
-        "duration_ms": 2305
+        "duration_ms": 2404
       }
     },
     {
@@ -905,9 +915,9 @@
             "wrong_field": "answer=ok"
           },
           "trace": {
-            "started_at": "2026-05-05T04:52:28.590401Z",
-            "ended_at": "2026-05-05T04:52:28.843964Z",
-            "latency_ms": 253,
+            "started_at": "2026-05-05T05:56:55.489072Z",
+            "ended_at": "2026-05-05T05:56:55.635204Z",
+            "latency_ms": 146,
             "retries": 0,
             "tool_calls": [
               {
@@ -920,8 +930,8 @@
                     "Supported file formats: PDF, DOCX, PNG, JPG."
                   ]
                 },
-                "started_at": "2026-05-05T04:52:28.765083Z",
-                "ended_at": "2026-05-05T04:52:28.843928Z",
+                "started_at": "2026-05-05T05:56:55.601903Z",
+                "ended_at": "2026-05-05T05:56:55.635195Z",
                 "error": null
               }
             ],
@@ -1027,7 +1037,7 @@
             "severity": "medium",
             "reason": null,
             "details": {
-              "latency_ms": 253,
+              "latency_ms": 146,
               "budget_ms": 1500
             }
           },
@@ -1090,7 +1100,7 @@
             "severity": "high"
           }
         ],
-        "duration_ms": 254
+        "duration_ms": 146
       }
     },
     {
@@ -1117,9 +1127,9 @@
             ]
           },
           "trace": {
-            "started_at": "2026-05-05T04:52:28.849200Z",
-            "ended_at": "2026-05-05T04:52:29.014025Z",
-            "latency_ms": 164,
+            "started_at": "2026-05-05T05:56:55.489105Z",
+            "ended_at": "2026-05-05T05:56:55.810925Z",
+            "latency_ms": 321,
             "retries": 0,
             "tool_calls": [
               {
@@ -1132,8 +1142,8 @@
                     "The order_status tool returns status and ETA for any order ID."
                   ]
                 },
-                "started_at": "2026-05-05T04:52:28.986549Z",
-                "ended_at": "2026-05-05T04:52:29.013876Z",
+                "started_at": "2026-05-05T05:56:55.788807Z",
+                "ended_at": "2026-05-05T05:56:55.810880Z",
                 "error": null
               }
             ],
@@ -1236,7 +1246,7 @@
             "severity": "medium",
             "reason": null,
             "details": {
-              "latency_ms": 164,
+              "latency_ms": 321,
               "budget_ms": 2000
             }
           },
@@ -1270,7 +1280,7 @@
         "final_score": 70.73,
         "passed": false,
         "findings": [],
-        "duration_ms": 165
+        "duration_ms": 322
       }
     }
   ],
@@ -1319,7 +1329,7 @@
     {
       "failure_class": "latency_issue",
       "label": "Latency Issue",
-      "count": 2,
+      "count": 3,
       "severity": "medium",
       "example_scenario_ids": [
         "latency_strict"
@@ -1406,9 +1416,9 @@
       "pass_rate": 0.8333
     },
     "retries": {
-      "pass": 12,
-      "fail": 0,
-      "pass_rate": 1.0
+      "pass": 11,
+      "fail": 1,
+      "pass_rate": 0.9167
     }
   },
   "judge_disagreement_penalty": 0.0

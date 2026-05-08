@@ -12,3 +12,21 @@ results/
 dist/
 build/
 .DS_Store
+
+# Local scratch dirs created during smoke testing — disposable, not for git.
+tmp_sandisk/
+tmp_*/
+pytest-cache-files-*/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+
+# Claude Code session state (worktrees, scheduled tasks, local agent settings).
+.claude/
+
+# Design assets / decks — large binaries kept out of git.
+deva/
+*.pptx
+

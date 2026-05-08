@@ -67,20 +67,20 @@
     "passed": false,
     "score": 0.0,
     "severity": "medium",
-    "reason": "latency 2464ms over budget 1200ms (+1264ms)",
+    "reason": "latency 3479ms over budget 1200ms (+2279ms)",
     "details": {
-      "latency_ms": 2464,
+      "latency_ms": 3479,
       "budget_ms": 1200
     }
   },
   {
     "name": "retries",
-    "passed": true,
-    "score": 1.0,
+    "passed": false,
+    "score": 0.0,
     "severity": "medium",
-    "reason": null,
+    "reason": "retries 1 > cap 0",
     "details": {
-      "retries": 0,
+      "retries": 1,
       "cap": 0
     }
   }

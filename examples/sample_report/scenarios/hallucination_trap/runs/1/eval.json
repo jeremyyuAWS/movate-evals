@@ -10,9 +10,9 @@
       "sources": []
     },
     "trace": {
-      "started_at": "2026-05-05T04:52:28.727105Z",
-      "ended_at": "2026-05-05T04:52:29.089149Z",
-      "latency_ms": 362,
+      "started_at": "2026-05-05T05:56:55.489093Z",
+      "ended_at": "2026-05-05T05:56:55.671631Z",
+      "latency_ms": 182,
       "retries": 0,
       "tool_calls": [
         {
@@ -25,8 +25,8 @@
               "Project Atlas is an internal initiative. The executive sponsor is not listed in the provided documents."
             ]
           },
-          "started_at": "2026-05-05T04:52:29.020622Z",
-          "ended_at": "2026-05-05T04:52:29.089130Z",
+          "started_at": "2026-05-05T05:56:55.601861Z",
+          "ended_at": "2026-05-05T05:56:55.671626Z",
           "error": null
         }
       ],
@@ -127,7 +127,7 @@
       "severity": "medium",
       "reason": null,
       "details": {
-        "latency_ms": 362,
+        "latency_ms": 182,
         "budget_ms": 1500
       }
     },
@@ -185,5 +185,5 @@
       "severity": "high"
     }
   ],
-  "duration_ms": 362
+  "duration_ms": 182
 }

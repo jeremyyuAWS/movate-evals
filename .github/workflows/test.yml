@@ -83,9 +83,9 @@ jobs:
           # ubuntu-latest already has both, but pin in case of future image changes.
           which curl jq
 
-      - name: Run e2e smoke test against live Fly deployment
+      - name: Run e2e smoke test against live Azure deployment
         env:
-          API_BASE: ${{ vars.MDK_API_BASE || 'https://mdk-eval-web.fly.dev' }}
+          API_BASE: ${{ vars.MDK_API_BASE || 'https://mdk-eval-web.whitefield-b83c207d.eastus.azurecontainerapps.io' }}
           MDK_WEB_API_KEY: ${{ secrets.MDK_WEB_API_KEY }}
           # Use a unique slug per CI run so we don't collide with prior runs in the DB.
           # GitHub run number guarantees monotonic uniqueness.

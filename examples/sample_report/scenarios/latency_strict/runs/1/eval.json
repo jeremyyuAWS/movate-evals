@@ -12,10 +12,10 @@
       ]
     },
     "trace": {
-      "started_at": "2026-05-05T04:52:29.020420Z",
-      "ended_at": "2026-05-05T04:52:31.484929Z",
-      "latency_ms": 2464,
-      "retries": 0,
+      "started_at": "2026-05-05T05:56:55.636506Z",
+      "ended_at": "2026-05-05T05:56:59.116369Z",
+      "latency_ms": 3479,
+      "retries": 1,
       "tool_calls": [
         {
           "name": "kb_search",
@@ -27,8 +27,8 @@
               "Refunds are issued within 14 business days for orders under $500."
             ]
           },
-          "started_at": "2026-05-05T04:52:31.410058Z",
-          "ended_at": "2026-05-05T04:52:31.484776Z",
+          "started_at": "2026-05-05T05:56:59.036628Z",
+          "ended_at": "2026-05-05T05:56:59.116309Z",
           "error": null
         }
       ],
@@ -129,20 +129,20 @@
       "passed": false,
       "score": 0.0,
       "severity": "medium",
-      "reason": "latency 2464ms over budget 1200ms (+1264ms)",
+      "reason": "latency 3479ms over budget 1200ms (+2279ms)",
       "details": {
-        "latency_ms": 2464,
+        "latency_ms": 3479,
         "budget_ms": 1200
       }
     },
     {
       "name": "retries",
-      "passed": true,
-      "score": 1.0,
+      "passed": false,
+      "score": 0.0,
       "severity": "medium",
-      "reason": null,
+      "reason": "retries 1 > cap 0",
       "details": {
-        "retries": 0,
+        "retries": 1,
         "cap": 0
       }
     }
@@ -167,14 +167,24 @@
   "findings": [
     {
       "failure_class": "latency_issue",
-      "reason": "latency 2464ms over budget 1200ms (+1264ms)",
+      "reason": "latency 3479ms over budget 1200ms (+2279ms)",
       "evidence": {
-        "latency_ms": 2464,
+        "latency_ms": 3479,
         "budget_ms": 1200
       },
       "recommendation": "Profile slowest hop; cache retrieval; right-size models per node.",
       "severity": "medium"
+    },
+    {
+      "failure_class": "latency_issue",
+      "reason": "retries 1 > cap 0",
+      "evidence": {
+        "retries": 1,
+        "cap": 0
+      },
+      "recommendation": "Investigate root cause of retried calls; add idempotency keys and circuit breakers.",
+      "severity": "medium"
     }
   ],
-  "duration_ms": 2464
+  "duration_ms": 3480
 }

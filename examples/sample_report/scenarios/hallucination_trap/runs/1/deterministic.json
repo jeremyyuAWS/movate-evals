@@ -76,7 +76,7 @@
     "severity": "medium",
     "reason": null,
     "details": {
-      "latency_ms": 362,
+      "latency_ms": 182,
       "budget_ms": 1500
     }
   },

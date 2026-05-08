@@ -27,12 +27,13 @@ COPY mdk_eval ./mdk_eval
 COPY migrations ./migrations
 
 # Install the package + the extras the web service needs:
-# - judges: OpenAI + Anthropic clients (for eval execution + LLM ingest)
-# - viz:    Altair + vl-convert for chart rendering in reports
-# - push:   psycopg (DB writes)
-# - web:    FastAPI + uvicorn + python-multipart
+# - judges:        OpenAI + Anthropic clients (for eval execution + LLM ingest)
+# - viz:           Altair + vl-convert for chart rendering in reports
+# - push:          psycopg (DB writes)
+# - web:           FastAPI + uvicorn + python-multipart
+# - observability: Application Insights (azure-monitor-opentelemetry) + Langfuse
 RUN uv venv /opt/venv && \
-    uv pip install --python /opt/venv/bin/python -e ".[web,push,judges,viz]"
+    uv pip install --python /opt/venv/bin/python -e ".[web,push,judges,viz,observability]"
 
 # ---------- Stage 2: runtime ----------
 FROM python:3.11-slim AS runtime
@@ -57,9 +58,19 @@ COPY --from=builder --chown=mdk:mdk /build /home/mdk/app
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    # Cache directory inside the container; mounted as a Fly volume in fly.toml
-    # so judge-cache survives container restarts and pays off across requests.
+    # Cache directory inside the container. Judge-cache lives here; on Azure
+    # Container Apps it's ephemeral per-revision (Fly era used a volume) —
+    # caching is best-effort. The auditable copy of judge responses lives in
+    # Postgres regardless.
     MDK_EVAL_CACHE_DIR=/home/mdk/.mdk-eval
+
+# Build-time provenance — surfaced via /version endpoint and observability.
+# Pass via `--build-arg GIT_SHA=...` or set in CI; default to "unknown" so
+# local builds don't fail.
+ARG GIT_SHA=unknown
+ARG IMAGE_TAG=unknown
+ENV MDK_EVAL_GIT_SHA=$GIT_SHA \
+    MDK_EVAL_IMAGE_TAG=$IMAGE_TAG
 
 WORKDIR /home/mdk/app
 

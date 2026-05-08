@@ -1,261 +1,339 @@
-# Deploying the Movate Agent Assurance web service to Fly.io
+# Deploying the Movate Agent Assurance web service to Azure Container Apps
 
-This document covers shipping the FastAPI backend (the one that powers Bolt's dashboard) to Fly.io. When you cut over to Azure Container Apps later, see the "Migrating to Azure" section at the bottom — the only thing that changes is the host.
+This document covers shipping the FastAPI backend (the one that powers Bolt's dashboard) to Azure Container Apps. The infrastructure is already provisioned under resource group `mdk-eval-rg` (East US) — most of this doc is about **redeploying changes**, not standing up the platform from scratch.
+
+> Migrated off Fly.io on 2026-05-06. Old `mdk-eval-web.fly.dev` URLs are dead.
 
 ---
 
-## What you're deploying
+## What's deployed
 
-A single FastAPI container that exposes:
-
-| Endpoint | Purpose |
+| Thing | Where |
 |---|---|
-| `GET /healthz` | Liveness (no auth) |
-| `GET /api/agents` | List agents (for dropdowns) |
-| `POST /api/agent-definitions` | Upload + ingest a Lyzr agent JSON |
-| `POST /api/runs` | Kick off an evaluation |
-| `GET /api/runs/{job_id}` | Poll job status |
-| `GET /api/scenario-sets/{id}` | List scenarios in a set |
-| `PATCH /api/scenarios/{id}` | Approve / reject / annotate a scenario |
+| Backend container | `mdk-eval-web` Container App in `mdk-eval-rg` (eastus) |
+| Public URL | `https://mdk-eval-web.whitefield-b83c207d.eastus.azurecontainerapps.io` |
+| Container image registry | `mdkevalacr151f8c.azurecr.io` (Basic SKU, eastus) |
+| Container Apps environment | `mdk-eval-env` (consumption-only workload profile) |
+| Log Analytics workspace | `workspace-mdkevalrgxRrK` (auto-created with the env) |
+| Postgres | Supabase (unchanged from the Fly era — `aws-1-us-east-2.pooler.supabase.com:5432`) |
 
-The container also runs evaluations as background tasks. No separate worker — eval execution is in-process via FastAPI BackgroundTasks. Fine for prototype scale.
+All resources are tagged `project=movate-evals`, `owner=jeremy.yu@movate.com`, `env=prod`. Filter by tag in the Azure portal to find them grouped.
+
+---
+
+## Endpoints exposed
+
+| Endpoint | Auth | Purpose |
+|---|---|---|
+| `GET /healthz` | none | Liveness check |
+| `GET /openapi.json` | none | OpenAPI schema (Bolt generates types from this) |
+| `POST /api/agent-definitions` | Bearer | Upload + ingest a Lyzr agent JSON |
+| `POST /api/agent-definitions/preview` | Bearer | Mix Designer cost preview without persisting |
+| `POST /api/runs` | Bearer | Queue an evaluation (durable via pgmq) |
+| `GET /api/runs/{job_id}` | Bearer | Poll job status |
+| `GET /api/portfolio/at-a-glance` | Bearer | Portfolio overview (all agents in one round-trip) |
+| `GET /api/scenario-sets/{id}` | Bearer | List scenarios in a set |
+| `PATCH /api/scenarios/{id}` | Bearer | Approve / reject / annotate a scenario |
+| Plus: scenario regenerate, propose-one, add-scenarios, from-jsonl, insights, leaderboard, etc. |
 
 ---
 
 ## Prerequisites
 
-- Fly account with `flyctl` installed (`brew install flyctl`)
-- The Supabase Postgres connection string (you already have this — it's in our session history)
-- An OpenAI API key (for judges + LLM ingest)
-- An Anthropic API key (for the meta-judge + the second model in the panel)
-- A Lyzr API key if you'll evaluate Lyzr agents
-- A strong shared-secret token for `MDK_WEB_API_KEY` — generate with: `python -c "import secrets; print(secrets.token_urlsafe(32))"`
+- `az` CLI installed (`brew install azure-cli`)
+- Logged in: `az login` (you should see CSS Corp Global tenant, subscription `Azure subscription 1`)
+- Docker NOT required — we use `az acr build` for cloud-side builds
+- The four secrets already exist as Container App secrets (see "Secret management" below)
 
 ---
 
-## Deploy in 6 steps
+## Redeploying after a code change
 
-### 1. Initialize the Fly app
+This is the everyday flow.
 
-From the repo root:
+### 1. Build a new image in Azure Container Registry
 
 ```bash
-fly launch --no-deploy --copy-config
+TAG=$(date +%Y%m%d-%H%M%S)
+az acr build \
+  --registry mdkevalacr151f8c \
+  --resource-group mdk-eval-rg \
+  --image mdk-eval-web:$TAG \
+  --image mdk-eval-web:latest \
+  .
 ```
 
-When prompted:
-- Choose the app name (e.g. `mdk-eval-web` if available; Fly will suggest if taken)
-- Region: `ord` is set in fly.toml; `fly regions set <code>` to change
-- Postgres / Redis: **No** (we're using Supabase + in-process queue)
-- Deploy now: **No** (we need to set secrets first)
+Build runs in Azure (no local Docker needed), takes ~3 min cold, ~30 s warm.
 
-This reads our `fly.toml` and registers the app.
-
-### 2. Create a persistent disk for the judge cache
+### 2. Roll the Container App to the new image
 
 ```bash
-fly volumes create mdk_cache --size 1 --region ord
+az containerapp update \
+  --name mdk-eval-web \
+  --resource-group mdk-eval-rg \
+  --image mdkevalacr151f8c.azurecr.io/mdk-eval-web:$TAG
 ```
 
-A 1 GB volume is plenty. The cache pays for itself within a single evaluation — re-running the same dataset costs $0 in tokens.
+A new revision starts in parallel; the old one drains. Zero-downtime by default.
 
-### 3. Set the secrets
-
-```bash
-fly secrets set \
-  DATABASE_URL='postgresql://postgres.ycyormadqjiwagfohbmo:<password>@aws-1-us-east-2.pooler.supabase.com:5432/postgres?sslmode=require' \
-  MDK_WEB_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')" \
-  OPENAI_API_KEY='sk-...' \
-  ANTHROPIC_API_KEY='sk-ant-...' \
-  LYZR_API_KEY='sk-default-...' \
-  MDK_WEB_CORS_ORIGINS='https://<your-bolt-dashboard-url>.bolt.host'
-```
-
-Notes:
-- `DATABASE_URL` — the same connection string you used for the local push. Note the `?sslmode=require` suffix — Supabase requires it.
-- `MDK_WEB_API_KEY` — this is what Bolt's frontend sends as `Authorization: Bearer <token>`. Print it once with `fly secrets list` to copy into Bolt's env vars.
-- `MDK_WEB_CORS_ORIGINS` — comma-separated list of allowed origins. Bolt's deploy URL goes here. Do **not** use `*` in production.
-
-### 4. Deploy
+### 3. Verify
 
 ```bash
-fly deploy
-```
-
-First deploy takes ~3 minutes (image build + push). Subsequent deploys are ~30s thanks to layer caching.
-
-### 5. Verify it's up
-
-```bash
-# liveness
-curl https://<app-name>.fly.dev/healthz
+URL="https://mdk-eval-web.whitefield-b83c207d.eastus.azurecontainerapps.io"
+curl -s "$URL/healthz"
 # expect: {"status":"ok","version":"0.1.0"}
 
-# auth
-curl -H "Authorization: Bearer <MDK_WEB_API_KEY>" https://<app-name>.fly.dev/api/agents
-# expect: a JSON array of agents (the ones you've already pushed)
+KEY=$(az containerapp secret show -n mdk-eval-web -g mdk-eval-rg \
+  --secret-name mdk-web-api-key --query value -o tsv)
+curl -s -H "Authorization: Bearer $KEY" "$URL/api/agents" | jq length
+# expect: integer count of agents in the DB
 ```
 
-If `/api/agents` returns something other than `[]`, your DB connection is working and the data from earlier pushes is visible.
+---
 
-### 6. Apply migration 002 to Supabase
+## Secret management
 
-The web service needs the `scenario_set`, `scenario`, and `web_run_job` tables that migration 001 doesn't include. Apply migration 002:
+Secrets live as Container App secrets and are mounted as env vars. Names:
+
+| Container App secret | Env var | Used by |
+|---|---|---|
+| `mdk-web-api-key` | `MDK_WEB_API_KEY` | Bearer-token auth on `/api/*` |
+| `database-url` | `DATABASE_URL` | Supabase Postgres connection |
+| `openai-api-key` | `OPENAI_API_KEY` | LLM extractor + judges (OpenAI side) |
+| `anthropic-api-key` | `ANTHROPIC_API_KEY` | Multi-judge panel (Anthropic side) |
+| `lyzr-api-key` | `LYZR_API_KEY` | Lyzr adapter when running real agents |
+| `applicationinsights-connection-string` | `APPLICATIONINSIGHTS_CONNECTION_STRING` | App Insights telemetry export. Resource: `mdk-eval-insights` (tied to the existing Log Analytics workspace). |
+| (optional) `langfuse-public-key` | `LANGFUSE_PUBLIC_KEY` | LLM-call tracing in Langfuse. Off when unset; turn on to see judge/adapter spans. |
+| (optional) `langfuse-secret-key` | `LANGFUSE_SECRET_KEY` | Same. |
+| (optional) `langfuse-host` | `LANGFUSE_HOST` | Optional self-hosted host. Default: Langfuse Cloud. |
+
+Plus the registry credential `mdkevalacr151f8cazurecrio-mdkevalacr151f8c` (auto-managed by Azure).
+
+### Read a secret
 
 ```bash
-psql "$DATABASE_URL" -f migrations/002_scenario_storage.sql
+az containerapp secret show \
+  --name mdk-eval-web --resource-group mdk-eval-rg \
+  --secret-name mdk-web-api-key --query value -o tsv
 ```
 
-Or paste the contents of [migrations/002_scenario_storage.sql](migrations/002_scenario_storage.sql) into Supabase Studio → SQL Editor → Run. The migration is idempotent (`CREATE TABLE IF NOT EXISTS`), safe to run multiple times.
+### Rotate a secret
+
+```bash
+az containerapp secret set \
+  --name mdk-eval-web --resource-group mdk-eval-rg \
+  --secrets anthropic-api-key="sk-ant-NEW-VALUE"
+# A new revision starts automatically with the new value.
+```
+
+### Add a brand-new secret + env var
+
+```bash
+# 1. Add the secret
+az containerapp secret set --name mdk-eval-web --resource-group mdk-eval-rg \
+  --secrets new-thing="value"
+
+# 2. Reference it in env vars (this replaces the env list, so include all)
+az containerapp update --name mdk-eval-web --resource-group mdk-eval-rg \
+  --set-env-vars NEW_THING=secretref:new-thing
+```
+
+### Plain (non-secret) env vars
+
+Already set: `MDK_WEB_CORS_ORIGINS`, `MDK_WEB_CORS_ORIGIN_REGEX`. To add or update:
+
+```bash
+az containerapp update --name mdk-eval-web --resource-group mdk-eval-rg \
+  --set-env-vars MDK_WEB_CORS_ORIGINS='https://bolt.host,https://your-vercel.app'
+```
+
+---
+
+## Observability
+
+**Application Insights** (`mdk-eval-insights` in `mdk-eval-rg`) auto-captures:
+
+- HTTP server requests (FastAPI middleware) — latency, status, path
+- HTTP client requests (httpx — Lyzr / OpenAI / Anthropic SDKs use this)
+- Postgres queries (psycopg auto-instrumentation)
+- Python exceptions (every uncaught error is a tracked exception)
+- Custom events emitted by `mdk_eval.web.observability.emit_event`:
+  `http.request_completed`, `judge.call_completed`, `judge.cache_hit`,
+  `job.started`, `job.completed`, `job.failed`, etc.
+
+### Useful KQL queries
+
+Find every request in a single trace_id:
+```kusto
+union requests, customEvents, exceptions, dependencies
+| where customDimensions.trace_id == "<paste from X-Trace-Id header>"
+| order by timestamp asc
+```
+
+Judge throughput + cache hit ratio:
+```kusto
+customEvents
+| where name in ("judge.call_completed", "judge.cache_hit")
+| summarize calls=count() by name, bin(timestamp, 1h)
+| render timechart
+```
+
+Slowest endpoints:
+```kusto
+customEvents
+| where name == "http.request_completed"
+| extend duration_ms = todouble(customDimensions.duration_ms)
+| summarize p50=percentile(duration_ms, 50), p95=percentile(duration_ms, 95), count() by tostring(customDimensions.path)
+| order by p95 desc
+```
+
+**Langfuse** (optional, env-gated). When `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` are set on the Container App, every judge call, adapter call, and LLM extractor call becomes a Langfuse generation span with full prompt + response capture. Sign up at langfuse.com (free tier handles solo workloads), create a project, paste the keys via `az containerapp secret set`, and `/version` will start reporting `observability.langfuse: true`.
+
+---
+
+## Logs & monitoring
+
+### Tail live logs
+
+```bash
+az containerapp logs show --name mdk-eval-web --resource-group mdk-eval-rg --follow
+```
+
+### Query historical logs (Log Analytics)
+
+```bash
+az monitor log-analytics query \
+  --workspace $(az monitor log-analytics workspace show \
+                  -g mdk-eval-rg -n workspace-mdkevalrgxRrK \
+                  --query customerId -o tsv) \
+  --analytics-query "ContainerAppConsoleLogs_CL | where TimeGenerated > ago(1h) | take 100"
+```
+
+Or open the workspace in the portal → Logs → run KQL.
+
+### Watch a long-running eval
+
+```bash
+JOB_ID="job-abc123"
+KEY=$(az containerapp secret show -n mdk-eval-web -g mdk-eval-rg --secret-name mdk-web-api-key --query value -o tsv)
+URL="https://mdk-eval-web.whitefield-b83c207d.eastus.azurecontainerapps.io"
+watch -n 5 "curl -s -H 'Authorization: Bearer $KEY' $URL/api/runs/$JOB_ID | jq"
+```
+
+---
+
+## Scaling
+
+The app uses Azure Container Apps' consumption-only profile: scales to zero when idle, spins up on first request (cold start ~2–3 s).
+
+### Adjust scale
+
+```bash
+# always-on (e.g. so cold starts don't break Bolt's first page load)
+az containerapp update --name mdk-eval-web --resource-group mdk-eval-rg \
+  --min-replicas 1 --max-replicas 3
+
+# back to scale-to-zero
+az containerapp update --name mdk-eval-web --resource-group mdk-eval-rg \
+  --min-replicas 0 --max-replicas 3
+```
+
+Cost: a single always-on `0.5 vCPU / 1 GiB` replica is roughly $30/month at full uptime. Scale-to-zero is essentially free for prototype traffic.
+
+---
+
+## Database
+
+Postgres lives at Supabase, unchanged. Migrations land via `psql` against `DATABASE_URL`:
+
+```bash
+DATABASE_URL=$(az containerapp secret show -n mdk-eval-web -g mdk-eval-rg \
+  --secret-name database-url --query value -o tsv)
+psql "$DATABASE_URL" -f migrations/006_<latest>.sql
+```
+
+Migrations are idempotent (`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`). Re-running is safe.
 
 ---
 
 ## Wiring Bolt's frontend
 
-In Bolt's project settings (or `.env` file in the generated dashboard):
+In Bolt's project env vars:
 
 ```
-NEXT_PUBLIC_API_BASE=https://<app-name>.fly.dev
-MDK_WEB_API_KEY=<the same secret from step 3>
+VITE_API_BASE=https://mdk-eval-web.whitefield-b83c207d.eastus.azurecontainerapps.io
+VITE_MDK_API_KEY=<value of mdk-web-api-key from Azure>
 ```
 
 Bolt's frontend should send every API request with:
 ```
-Authorization: Bearer ${MDK_WEB_API_KEY}
+Authorization: Bearer ${VITE_MDK_API_KEY}
 ```
 
-Tell Bolt:
+Generate types from the OpenAPI spec on app build:
 
-> The backend lives at `${NEXT_PUBLIC_API_BASE}`. All endpoints under `/api/*` require a Bearer token from `MDK_WEB_API_KEY`. The OpenAPI schema is at `${NEXT_PUBLIC_API_BASE}/openapi.json` — generate types from it.
->
-> Add an "Upload Agent Definition" page that:
-> 1. File picker accepting `.json` files
-> 2. Form fields: engagement_slug, agent_slug, scenario_set_name, optional engagement_name + agent_name, optional `synthesize` checkbox
-> 3. POST as multipart/form-data to `/api/agent-definitions`
-> 4. On response, navigate to `/scenario-sets/{scenario_set_id}` to review the derived scenarios
->
-> Add a "Scenario Review" page at `/scenario-sets/{id}`:
-> 1. Lists scenarios from `GET /api/scenario-sets/{id}`
-> 2. Each row shows: scenario_id, status badge, severity, tags, "view payload" expand, derived_from provenance (extractor, model, constraint_quote)
-> 3. Approve / Reject buttons hit `PATCH /api/scenarios/{id}` with `new_status=approved` or `new_status=rejected`
-> 4. "Run Evaluation" button at the top → opens a modal with judges_enabled toggle + runs_per_scenario slider → POSTs `/api/runs` → navigates to `/runs/{job_id}` showing live status
-
----
-
-## Operations
-
-### Logs
 ```bash
-fly logs                  # tail
-fly logs --since 1h       # historical
+npx openapi-typescript $VITE_API_BASE/openapi.json -o src/lib/apiTypes.ts
 ```
 
-### Status
+CORS allowlist on the backend (already configured) accepts:
+- `https://*.bolt.host`, `https://*.bolt.new`, `https://*.webcontainer-api.io`
+- `https://*.vercel.app`
+- `http://localhost:*`
+
+To add a new origin:
 ```bash
-fly status
-fly machine status        # per-machine
+az containerapp update -n mdk-eval-web -g mdk-eval-rg \
+  --set-env-vars MDK_WEB_CORS_ORIGINS='https://bolt.host,https://NEW-ORIGIN'
 ```
-
-### Open the deployed URL
-```bash
-fly open                  # opens the FastAPI auto-docs at /docs
-```
-
-### Scale up if you need always-on
-Edit `fly.toml`: `min_machines_running = 1`. Costs ~$2/mo for a shared-cpu-1x.
-
-### Watch a long-running eval
-```bash
-# from a local terminal:
-JOB_ID="job-abc123"
-watch -n 5 "curl -s -H 'Authorization: Bearer \$MDK_WEB_API_KEY' \
-  https://<app>.fly.dev/api/runs/\$JOB_ID | jq"
-```
-
----
-
-## Migrating to Azure Container Apps later
-
-When you're ready to move off Supabase + Fly to Azure Postgres + Azure Container Apps, the only changes are infrastructural:
-
-1. **Build** the same Dockerfile against Azure Container Registry:
-   ```bash
-   az acr build -r <registry> -t mdk-eval-web:latest .
-   ```
-2. **Create** the Azure Postgres Flexible Server, run migrations 001 + 002 against it
-3. **Deploy** to Container Apps with the same env vars (just point `DATABASE_URL` at Azure Postgres):
-   ```bash
-   az containerapp create -n mdk-eval-web -g <rg> --image <registry>/mdk-eval-web:latest \
-     --secrets database-url="..." mdk-web-api-key="..." openai-api-key="..." anthropic-api-key="..." \
-     --env-vars DATABASE_URL=secretref:database-url \
-                MDK_WEB_API_KEY=secretref:mdk-web-api-key \
-                OPENAI_API_KEY=secretref:openai-api-key \
-                ANTHROPIC_API_KEY=secretref:anthropic-api-key \
-                MDK_WEB_CORS_ORIGINS="https://your-bolt-url" \
-     --ingress external --target-port 8080
-   ```
-4. **Mount** Azure Files for the cache equivalent of the Fly volume (or accept that cache is per-revision)
-5. **Update** Bolt's `NEXT_PUBLIC_API_BASE` to the new `<app>.azurecontainerapps.io` URL
-
-Application code is identical. Schema is identical. The push CLI works against either DB. Switchover is mostly a DNS + env-var change once the Azure side is provisioned.
 
 ---
 
 ## Troubleshooting
 
 **"Invalid or missing bearer token" on every request**
-The `MDK_WEB_API_KEY` your client is sending doesn't match what's in Fly secrets. Check with `fly secrets list` (shows hashes, not values — you'll need to compare lengths or rotate).
+The `Authorization: Bearer …` value Bolt is sending doesn't match the current `mdk-web-api-key`. Re-fetch with `az containerapp secret show … --secret-name mdk-web-api-key --query value -o tsv` and paste into Bolt's env. After rotation, also restart Bolt's webcontainer (the env is captured at boot).
 
 **"Service auth is not configured" (HTTP 503)**
-`MDK_WEB_API_KEY` is unset in Fly secrets. Set it. The service refuses to run open by design.
+`MDK_WEB_API_KEY` env var is unset on the container. Run `az containerapp show -n mdk-eval-web -g mdk-eval-rg --query "properties.template.containers[0].env"` — the var should reference `secretref:mdk-web-api-key`. If missing, re-add via `--set-env-vars MDK_WEB_API_KEY=secretref:mdk-web-api-key`.
 
-**Eval runs hang at "queued"**
-Check `fly logs` — the BackgroundTask probably crashed. Common cause: the agent's backend (e.g. Lyzr) returned an error and the job_id wasn't updated. The job's `error_message` column should have the traceback; SELECT it from the `web_run_job` table.
+**Eval runs fail with `AuthenticationError: invalid x-api-key`**
+The Anthropic key (or OpenAI key, depending on which provider raised the error) on Container Apps is invalid. Rotate via `az containerapp secret set --secrets anthropic-api-key=sk-ant-NEW`. Then re-queue the failed run by `POST /api/runs` again — pgmq has at-least-once semantics so the prior failed job stays marked failed; you queue a fresh one.
 
-**"prepared statement already exists" errors when pushing**
-You're connected to Supabase via the Transaction Pooler (port 6543) instead of the Session Pooler (port 5432). Update `DATABASE_URL` to use port 5432 / `pooler.supabase.com:5432`.
+**Deploy succeeded but the new revision isn't serving traffic**
+Run `az containerapp revision list -n mdk-eval-web -g mdk-eval-rg -o table`. Look for `Active=False` on the new revision. Often means the container failed its readiness probe — check `az containerapp logs show --revision <revision-name>` for the boot error. Common cause: a missing env var that boot-time code accesses.
+
+**`prepared statement already exists` errors against Supabase**
+You're connected via the Transaction Pooler (port 6543) instead of the Session Pooler (5432). Fix `DATABASE_URL` to `pooler.supabase.com:5432`.
 
 **OpenAPI docs page is empty**
-Browser cache; hard-refresh. Or hit `/openapi.json` directly to see the JSON schema FastAPI auto-generates.
+Browser cache. Hard-refresh, or hit `/openapi.json` directly to confirm the schema is being served.
+
+**Cold start latency on first request**
+With `min-replicas=0`, the first request after idle takes ~2–3 s to spin up a new replica. Set `min-replicas=1` if Bolt's first page load latency matters for demos (~$30/mo trade-off).
 
 ---
 
-## Continuous verification — wire e2e smoke into GitHub Actions
+## CI/CD
 
-The `e2e_live` job in `.github/workflows/test.yml` runs `tests/test_e2e_smoke.sh` against the deployed Fly backend on every PR + push to main. To enable it:
+GitHub Actions (`.github/workflows/test.yml`) runs an e2e smoke test against the live deployment after every push to main. The `MDK_API_BASE` GitHub variable points at the Azure URL; `MDK_WEB_API_KEY` is a GitHub secret matching the Container App secret.
 
-### One-time setup
+If the smoke test starts failing after a deploy, suspect (in order): broken migrations on Supabase, expired LLM provider keys, or a CORS regression that breaks the test's `OPTIONS` preflight.
 
-1. Generate a CI bearer token (separate from your dev token, so you can rotate without breaking local work):
-   ```bash
-   CI_TOKEN=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')
-   # Add it as a SECOND valid token. Easiest path: the service treats
-   # MDK_WEB_API_KEY as a single shared secret, so for now use the same one
-   # as your local dev token. Rotate together when needed.
-   ```
+---
 
-2. In GitHub: **Settings → Secrets and variables → Actions → New repository secret**
-   - Name: `MDK_WEB_API_KEY`
-   - Value: the same token Fly uses (or your separate CI token if you've added multi-key auth)
+## What changed from Fly
 
-3. Optional: **Settings → Secrets and variables → Actions → Variables → New repository variable**
-   - Name: `MDK_API_BASE`
-   - Value: `https://mdk-eval-web.fly.dev` (only set if it differs from the default)
+For anyone reading old commit messages or chat history:
 
-### What the job does
+| Fly | Azure |
+|---|---|
+| `fly deploy` | `az acr build` + `az containerapp update --image …` |
+| `fly secrets set X=…` | `az containerapp secret set --secrets x=…` |
+| `fly secrets list` | `az containerapp secret list` |
+| `fly logs` | `az containerapp logs show --follow` |
+| `mdk-eval-web.fly.dev` | `mdk-eval-web.whitefield-b83c207d.eastus.azurecontainerapps.io` |
+| Fly volume `mdk_cache` | Not used — judge cache lives in Supabase via migration 003 |
+| `fly.toml` | Container Apps revision config (`az containerapp show`) |
 
-- Runs after the `test` job succeeds (no point hitting prod if local tests are red)
-- Executes `tests/test_e2e_smoke.sh` with `API_BASE` + `MDK_WEB_API_KEY` injected from secrets
-- Uses `AGENT_SLUG=ci-smoke-${{ github.run_number }}` so each CI run creates a fresh agent in Supabase (no UNIQUE constraint conflicts)
-- Skips gracefully (with a warning, not a failure) when `MDK_WEB_API_KEY` is unset — important for forks and external PRs that can't access org secrets
-
-### Cleanup
-
-Each CI run leaves an `agent` row in Supabase named `ci-smoke-N`. They accumulate. Add a periodic cleanup query (manual for now; could become a scheduled GHA later):
-
-```sql
-DELETE FROM engagement WHERE slug = 'ci-smoke';
--- cascades to agents → runs → scenarios automatically per the FK ON DELETE rules.
-```
-
-Run that monthly (or whenever the dashboard's portfolio view starts looking cluttered with `ci-smoke-N` agents).
+The application code is identical across both. Schema is identical. The CLI push tool works against either era's `DATABASE_URL`.

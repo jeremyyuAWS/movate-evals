@@ -1,0 +1,62 @@
+# Demo run config — points at the live Movate FAQ Assistant on Lyzr.
+#
+# Customer-facing 10-minute demo dataset. The agent_id is the real Movate
+# FAQ Assistant we ingested previously; this config runs the curated
+# datasets/demo_movate_faq.jsonl against that agent end-to-end.
+#
+# Cost expectation: ~$0.30 per full run (10 scenarios × 3 runs × 6-judge panel).
+# Runtime expectation: ~3-5 minutes.
+
+adapter:
+  target: lyzr
+  endpoint: null
+  agent_id: 69f9630789e1a27b8101014b   # Movate FAQ Assistant — Lyzr backend ID
+  api_key_env: LYZR_API_KEY
+  headers: {}
+  request_template: null
+  response_text_path: $.response
+  response_tools_path: null
+  response_workflow_path: null
+  timeout_s: 60.0
+  max_retries: 2
+  graph_import_path: null
+
+judges:
+  enabled_roles:
+    - correctness
+    - grounding
+    - completeness
+    - tool_usage
+    - ux_tone
+    - safety
+  panel:
+    - provider: openai
+      model: gpt-4o-mini
+      temperature: 0.0
+    - provider: anthropic
+      model: claude-haiku-4-5-20251001
+      temperature: 0.0
+  meta_judge:
+    provider: anthropic
+    model: claude-sonnet-4-6
+    temperature: 0.0
+  arbitration_variance_threshold: 0.04
+  deepeval_metrics:
+    - g_eval
+    - task_completion
+    - hallucination
+    - answer_relevance
+  triangulation_enabled: true
+  triangulation_disagreement_threshold: 0.3
+
+judges_enabled: true
+runs_per_scenario: 1                 # Single run per scenario for fast demo; bump to 3 for consistency analysis
+concurrency: 3
+output_dir: ./results
+dataset: datasets/demo_movate_faq.jsonl
+langfuse_enabled: false              # Set to true once LANGFUSE_PUBLIC_KEY/SECRET_KEY are exported
+pdf: true
+client_name: movate-faq-demo
+client_logo_path: null
+movate_logo_path: ./movate-logo.jpg
+confidentiality_footer: "Confidential — Movate Agent Assurance demo run."

@@ -14,6 +14,11 @@ primary_region = 'ord'
 
 [env]
   PORT = '8080'
+  # Number of concurrent worker tasks per machine. 2 is a good balance for
+  # shared-cpu-2x — eval runs are I/O-heavy (waiting on judge LLMs) so two
+  # in flight saturates the CPU without thrashing. Bump to 3-4 if upgrading
+  # to performance-cpu-2x.
+  MDK_WORKER_CONCURRENCY = '2'
 
 # Persistent disk for the judge cache. Currently disabled — re-enable by
 # running `fly volumes create mdk_cache --size 1 --region ord` and uncommenting
@@ -38,5 +43,7 @@ primary_region = 'ord'
     path = '/healthz'
 
 [[vm]]
-  size = 'shared-cpu-1x'
-  memory = '1gb'
+  # Bumped from shared-cpu-1x → shared-cpu-2x to support 2 concurrent worker
+  # tasks. ~$0/mo additional on Fly's free tier; no real cost increase.
+  size = 'shared-cpu-2x'
+  memory = '2gb'

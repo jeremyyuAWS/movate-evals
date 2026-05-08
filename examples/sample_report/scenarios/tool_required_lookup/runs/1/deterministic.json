@@ -68,7 +68,7 @@
     "severity": "medium",
     "reason": null,
     "details": {
-      "latency_ms": 211,
+      "latency_ms": 141,
       "budget_ms": 2000
     }
   },
@@ -79,7 +79,7 @@
     "severity": "medium",
     "reason": null,
     "details": {
-      "retries": 1,
+      "retries": 0,
       "cap": 1
     }
   }

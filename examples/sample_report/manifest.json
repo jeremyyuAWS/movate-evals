@@ -1,7 +1,7 @@
 {
-  "run_id": "run_2026-05-05T04-52-28Z",
-  "started_at": "2026-05-05T04:52:28.581636Z",
-  "ended_at": "2026-05-05T04:52:31.497531Z",
+  "run_id": "run_2026-05-05T05-56-55Z",
+  "started_at": "2026-05-05T05:56:55.478219Z",
+  "ended_at": "2026-05-05T05:56:59.123138Z",
   "target": "mock",
   "endpoint": null,
   "runs_per_scenario": 2,

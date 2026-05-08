@@ -1,7 +1,7 @@
 {
-  "started_at": "2026-05-05T04:52:29.379161Z",
-  "ended_at": "2026-05-05T04:52:29.712040Z",
-  "latency_ms": 332,
+  "started_at": "2026-05-05T05:56:55.812719Z",
+  "ended_at": "2026-05-05T05:56:56.005913Z",
+  "latency_ms": 193,
   "retries": 0,
   "tool_calls": [
     {
@@ -14,8 +14,8 @@
           "Supported file formats: PDF, DOCX, PNG, JPG."
         ]
       },
-      "started_at": "2026-05-05T04:52:29.652970Z",
-      "ended_at": "2026-05-05T04:52:29.712013Z",
+      "started_at": "2026-05-05T05:56:55.931013Z",
+      "ended_at": "2026-05-05T05:56:56.005886Z",
       "error": null
     }
   ],

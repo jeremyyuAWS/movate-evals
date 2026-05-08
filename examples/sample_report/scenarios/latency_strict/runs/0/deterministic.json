@@ -65,11 +65,11 @@
   {
     "name": "latency",
     "passed": false,
-    "score": 0.07999999999999996,
+    "score": 0.0,
     "severity": "medium",
-    "reason": "latency 2304ms over budget 1200ms (+1104ms)",
+    "reason": "latency 2404ms over budget 1200ms (+1204ms)",
     "details": {
-      "latency_ms": 2304,
+      "latency_ms": 2404,
       "budget_ms": 1200
     }
   },

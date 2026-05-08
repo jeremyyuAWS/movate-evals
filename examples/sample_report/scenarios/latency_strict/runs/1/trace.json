@@ -1,8 +1,8 @@
 {
-  "started_at": "2026-05-05T04:52:29.020420Z",
-  "ended_at": "2026-05-05T04:52:31.484929Z",
-  "latency_ms": 2464,
-  "retries": 0,
+  "started_at": "2026-05-05T05:56:55.636506Z",
+  "ended_at": "2026-05-05T05:56:59.116369Z",
+  "latency_ms": 3479,
+  "retries": 1,
   "tool_calls": [
     {
       "name": "kb_search",
@@ -14,8 +14,8 @@
           "Refunds are issued within 14 business days for orders under $500."
         ]
       },
-      "started_at": "2026-05-05T04:52:31.410058Z",
-      "ended_at": "2026-05-05T04:52:31.484776Z",
+      "started_at": "2026-05-05T05:56:59.036628Z",
+      "ended_at": "2026-05-05T05:56:59.116309Z",
       "error": null
     }
   ],

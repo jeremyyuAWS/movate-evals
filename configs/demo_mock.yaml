@@ -1,0 +1,24 @@
+# Demo run config — uses the mock adapter for deterministic, no-cost demos.
+#
+# Run this when you want a reproducible demo (training videos, customer-on-laptop
+# walkthroughs, CI-friendly smoke tests). Same dataset as demo_lyzr.yaml; the
+# mock adapter answers based on each scenario's expected_output, which means
+# happy-path scenarios pass cleanly and adversarial / safety scenarios show
+# realistic failure modes the dashboard surfaces.
+#
+# Cost: $0. Judges off — pure deterministic checks.
+# Runtime: ~5 seconds.
+#
+# For real-LLM demos against the live Lyzr agent, use demo_lyzr.yaml instead.
+
+dataset: datasets/demo_movate_faq.jsonl
+output_dir: ./results
+runs_per_scenario: 1
+concurrency: 4
+judges_enabled: false                # Toggle on for full panel; ~$0.30 cost
+pdf: false
+client_name: "movate-faq-demo (mock)"
+movate_logo_path: ./movate-logo.jpg
+
+adapter:
+  target: mock
