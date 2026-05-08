@@ -377,11 +377,23 @@ Three views, each answering a distinct question:
 1. **Hero** — composite score in a colored ring, status badge, auto-narrative paragraph, run metadata (timestamp, scenarios, runs/scenario, judge model versions).
 2. **6 KPI tiles** (the §7 list).
 3. **Reliability scorecard** — horizontal bar chart of all 10 categories with pass-threshold rule at 80.
-4. **What's working / Needs attention** — two-column split of KPIs by band.
-5. **Top 3 failure clusters** — numbered cards with severity badge, occurrence count, suggested fix, affected scenario IDs.
-6. **Per-scenario table** — sortable: scenario_id, severity, pass_rate, mean_score, variance, consistency, drift, failure classes. Click a row → scenario detail (judge verdicts, trace, output).
-7. **Methodology + provenance** — collapsed by default: schema_version, methodology_version, manifest_sha256, judge prompt hashes, model IDs.
-8. **Glossary** — every term defined inline (the 10 entries from `dashboard_kpis.GLOSSARY`).
+4. **Topical scorecard (NEW — 2026-05-07)** — horizontal bar chart of mean score per topic, sorted worst-first. Each row shows topic name, mean score, scenario count, optional severity-max chip. Clicking a row expands a category breakdown ("standard 95 / adversarial 71 / safety 56") so the user can see *which* behavioral category is dragging that topic's score down. Source: `GET /api/runs/{run_id}/topic-breakdown` (§8.6 of API reference). Hide the panel entirely if the response has zero topics. Show only the `untagged` bucket for legacy / pre-redesign runs.
+5. **What's working / Needs attention** — two-column split of KPIs by band.
+6. **Top 3 failure clusters** — numbered cards with severity badge, occurrence count, suggested fix, affected scenario IDs.
+7. **Per-scenario table** — sortable: scenario_id, severity, pass_rate, mean_score, variance, consistency, drift, failure classes. Click a row → scenario detail (judge verdicts, trace, output). Add a topic-tag chip column; let the user filter the table by topic by clicking a topical scorecard row.
+8. **Methodology + provenance** — collapsed by default: schema_version, methodology_version, manifest_sha256, judge prompt hashes, model IDs.
+9. **Glossary** — every term defined inline (the 10 entries from `dashboard_kpis.GLOSSARY`).
+
+**Topical scorecard data flow:**
+1. On `/runs/[run_id]` load, fetch `GET /api/runs/{run_id}/topic-breakdown`. (Pure groupby, $0.)
+2. Optionally pass the `topic_names` query param if the dashboard already cached an extraction
+   from `/api/agent-definitions/topics` for the run's agent — otherwise the response uses slugs
+   as display names, which is fine for v1.
+3. Render `topics[]` in order; each row = colored horizontal bar (score-banded green / yellow /
+   coral / magenta) + small "N scenarios" caption.
+4. Worst-bar variant: prepend a single one-liner summary above the panel: "Career & Hiring is
+   your weakest topic at 62 — 2 of 3 scenarios failed, max severity high." Generate
+   client-side from `topics[0]`.
 
 ### 8.2 Agent trends
 **Question:** "Is this agent getting better or worse over time?"
