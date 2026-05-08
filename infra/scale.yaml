@@ -1,0 +1,87 @@
+# Azure Container Apps scale configuration for `mdk-eval-web`.
+#
+# This file is the source of truth for scaling rules. Apply with:
+#
+#   az containerapp update --name mdk-eval-web --resource-group mdk-eval-rg \
+#     --yaml infra/scale.yaml
+#
+# DO NOT use `az containerapp update --min-replicas N` — that overrides
+# this YAML and silently breaks the schedule by setting a 24/7 floor.
+#
+# What this gives us
+# ------------------
+#   Weekday window:   07:00–19:00 America/Chicago, Mon–Fri  (60 hrs/week)
+#   Weekend window:   10:00–18:00 America/Chicago, Sat & Sun (16 hrs/week)
+#   On-hours uptime:  76 of 168 hrs/week (~45%)
+#   Off-hours floor:  0 replicas (HTTP scaler handles cold-start traffic)
+#   Estimated spend:  ~$13.50/mo at desiredReplicas=1 during windows
+#
+# DST handling
+# ------------
+# `timezone: America/Chicago` is an IANA name. KEDA's cron scaler uses
+# Go's time package, which respects DST automatically. No manual flip.
+#
+# Off-hours behavior (read this before paging on-call)
+# -----------------------------------------------------
+# - `POST /api/runs` outside the windows still works: HTTP scaler cold-starts
+#   the container, the request enqueues the job in pgmq, and the embedded
+#   worker (started in the FastAPI lifespan) begins draining.
+# - HOWEVER, the worker runs as an asyncio task INSIDE the API container.
+#   The HTTP scaler doesn't know the worker is busy — it only counts HTTP
+#   concurrent requests. If a job runs longer than ACA's HTTP idle window
+#   (~5 min), the container gets killed mid-job.
+# - Recovery: the next morning at 07:00 CT (or 10:00 CT weekend), the cron
+#   rule pins replicas=1, the lifespan boots a fresh worker, and the
+#   worker's startup sweep marks any stale `running` rows as
+#   `failed: 'worker restarted mid-job'`. The pgmq message reappears
+#   after its visibility timeout and gets re-processed cleanly.
+# - Net behavior: jobs queued off-hours may stall until the next window.
+#   They are never lost.
+#
+# If off-hours job draining becomes a real requirement, the proper fix is
+# to split the worker into its own Container App with a pgmq-driven KEDA
+# scaler (see DEPLOY.md → Scaling → Future: split worker).
+#
+# Mid-window scale-down (19:00 CT weekday, 18:00 CT weekend)
+# ----------------------------------------------------------
+# At the cron `end` boundary, the cron rule stops pinning replicas=1.
+# If no HTTP traffic, ACA scales to 0 within ~5 min. Any in-flight eval
+# gets killed mid-job and recovers via the same mechanism above.
+#
+# To give long-running evals a graceful tail, push `end` 15 min past your
+# stated cutoff (e.g. `0 19 * * 1-5` → `15 19 * * 1-5`).
+
+properties:
+  template:
+    scale:
+      minReplicas: 0
+      maxReplicas: 3
+      rules:
+        # Pin one replica during weekday business hours (Mon–Fri 07:00–19:00 CT)
+        - name: biz-hours-weekday
+          custom:
+            type: cron
+            metadata:
+              timezone: America/Chicago
+              start: "0 7 * * 1-5"
+              end:   "0 19 * * 1-5"
+              desiredReplicas: "1"
+
+        # Pin one replica during weekend hours (Sat & Sun 10:00–18:00 CT)
+        - name: biz-hours-weekend
+          custom:
+            type: cron
+            metadata:
+              timezone: America/Chicago
+              start: "0 10 * * 0,6"
+              end:   "0 18 * * 0,6"
+              desiredReplicas: "1"
+
+        # Burst up to maxReplicas=3 if traffic spikes inside a window.
+        # Outside windows this rule is also active — it lets a `POST /api/runs`
+        # cold-start a container — but with no traffic it doesn't pin anything,
+        # so the app returns to zero replicas after the HTTP idle window.
+        - name: http-burst
+          http:
+            metadata:
+              concurrentRequests: "30"

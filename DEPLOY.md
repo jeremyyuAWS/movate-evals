@@ -224,21 +224,66 @@ watch -n 5 "curl -s -H 'Authorization: Bearer $KEY' $URL/api/runs/$JOB_ID | jq"
 
 ## Scaling
 
-The app uses Azure Container Apps' consumption-only profile: scales to zero when idle, spins up on first request (cold start ~2–3 s).
+The app uses Azure Container Apps' consumption-only profile with **schedule-driven scaling** via KEDA cron scalers (built into ACA — no extra dependency). The full scale config lives in [`infra/scale.yaml`](./infra/scale.yaml) and is the source of truth.
 
-### Adjust scale
+### Current schedule
+
+| Window | Days | Hours (America/Chicago) | Pinned replicas |
+|---|---|---|---|
+| Weekday business hours | Mon–Fri | 07:00 – 19:00 | 1 |
+| Weekend hours | Sat & Sun | 10:00 – 18:00 | 1 |
+| All other times | — | — | 0 (scale-to-zero) |
+
+`timezone: America/Chicago` is an IANA name — DST flips automatically.
+
+**Cost:** ~76 of 168 hrs/week pinned (45% uptime) at one `0.5 vCPU / 1 GiB` replica ≈ **$13.50/mo**. Off-hours = effectively free. Burst-up to `maxReplicas: 3` is governed by the HTTP scaler at `concurrentRequests=30`.
+
+### Apply a scale change
+
+Edit `infra/scale.yaml`, then:
 
 ```bash
-# always-on (e.g. so cold starts don't break Bolt's first page load)
-az containerapp update --name mdk-eval-web --resource-group mdk-eval-rg \
-  --min-replicas 1 --max-replicas 3
-
-# back to scale-to-zero
-az containerapp update --name mdk-eval-web --resource-group mdk-eval-rg \
-  --min-replicas 0 --max-replicas 3
+az containerapp update \
+  --name mdk-eval-web \
+  --resource-group mdk-eval-rg \
+  --yaml infra/scale.yaml
 ```
 
-Cost: a single always-on `0.5 vCPU / 1 GiB` replica is roughly $30/month at full uptime. Scale-to-zero is essentially free for prototype traffic.
+> ⚠️ **Do NOT use `az containerapp update --min-replicas N`.** The flag-based path overrides `infra/scale.yaml` and silently sets a 24/7 floor — breaking the schedule and the cost model. Always go through the YAML.
+
+### Verify
+
+```bash
+# Confirm the rules are applied
+az containerapp show -n mdk-eval-web -g mdk-eval-rg \
+  --query "properties.template.scale" -o yaml
+
+# Watch live replica counts
+az containerapp revision list -n mdk-eval-web -g mdk-eval-rg \
+  --query "[].{name:name,replicas:properties.replicas,active:properties.active}" -o table
+
+# Tail logs across a window boundary (e.g. 06:55–07:05 CT) to see the KEDA
+# cron activation event fire
+az containerapp logs show -n mdk-eval-web -g mdk-eval-rg --follow
+```
+
+### Operational caveats
+
+**Mid-window scale-down kills in-flight runs.** At 19:00 CT a 17-minute eval queued at 18:55 gets terminated. The worker's startup sweep handles this safely on the next boot: stale `running` rows are marked `failed: 'worker restarted mid-job'`, and the pgmq message reappears after its visibility timeout. The job is never lost — but it will only complete on the next morning's window. Push the cron `end` 10–15 min past your stated cutoff if you want a graceful tail (e.g. `0 19 → 15 19`).
+
+**Off-hours queueing accepts requests but jobs may stall.** The worker is an embedded asyncio task inside the API container's lifespan. Off-hours, a `POST /api/runs` cold-starts the container via the HTTP scaler — the request enqueues, the worker boots and starts draining. But the HTTP scaler doesn't know the worker is busy (only counts HTTP requests), so after ~5 min idle it scales to zero and kills the worker mid-job. Recovery is automatic next morning via the startup sweep, but jobs queued at 11pm don't run overnight. Document this for whoever might queue a long eval expecting it to drain off-hours.
+
+**The Bolt dashboard's first request after 07:00 CT pays the cold-start once.** With `desiredReplicas=1` set by the cron rule, the 2–3s cold-start happens at the activation boundary, not per user. The very first dashboard hit between 06:55–07:00 will see it.
+
+**`maxReplicas=3` is the ceiling.** The cron rule pins the floor; the HTTP rule + maxReplicas govern the ceiling. If portfolio-eval traffic grows past 3 concurrent evals queued during business hours, bump it.
+
+### One container, both surfaces
+
+The current setup runs the API and the embedded worker in one ACA app, so this schedule covers both. If the worker ever gets split into its own ACA (see *Future: split worker* below), the same `infra/scale.yaml` block can be repeated on the worker app — same cron, same TZ, no other change.
+
+### Future: split worker for off-hours job draining
+
+If off-hours job draining becomes a real requirement (e.g. you want a 9pm `POST /api/runs` to actually run overnight), the proper fix is to split the worker into its own Container App with a **pgmq-driven KEDA scaler** that scales on visible message count. The worker app would have `minReplicas: 0`, no cron schedule, and would only spin up when there's queue depth. The API app keeps the current cron schedule. The worker code itself doesn't change — only the deployment topology.
 
 ---
 
@@ -310,7 +355,7 @@ You're connected via the Transaction Pooler (port 6543) instead of the Session P
 Browser cache. Hard-refresh, or hit `/openapi.json` directly to confirm the schema is being served.
 
 **Cold start latency on first request**
-With `min-replicas=0`, the first request after idle takes ~2–3 s to spin up a new replica. Set `min-replicas=1` if Bolt's first page load latency matters for demos (~$30/mo trade-off).
+Outside the cron windows defined in `infra/scale.yaml`, the app is at zero replicas and the first request takes ~2–3 s to spin up a new replica. Inside the windows, the cron rule pins one replica so the cold-start cost is paid only once at the window's start. If you need always-on for a demo, edit `infra/scale.yaml` to widen the cron `start`/`end` (or temporarily add a third 24/7 cron rule) and re-apply with `az containerapp update --yaml infra/scale.yaml`. Don't reach for `--min-replicas 1` — see the warning in the Scaling section.
 
 ---
 
