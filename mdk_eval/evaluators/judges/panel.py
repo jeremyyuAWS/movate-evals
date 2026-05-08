@@ -44,14 +44,16 @@ async def _verdict(
     scenario: Scenario,
     result: AdapterResult,
 ) -> JudgeVerdict:
+    """Single judge call for one role. Returns either:
+      - a normal verdict (score + pass + rationale), or
+      - an abstention (abstained=True + abstain_reason) when the judge said
+        it can't tell. Abstentions are excluded from arbitration math but
+        surfaced in the report so reviewers see the honest signal.
+    """
     system = JUDGE_PROMPTS[role]
     user = render_user(role, _payload(role, scenario, result))
     try:
         raw = await call_judge(judge.provider, judge.model, system, user, judge.temperature)
-        score = float(raw.get("score", 0.0))
-        score = max(0.0, min(1.0, score))
-        passed = bool(raw.get("pass", score >= 0.75))
-        rationale = str(raw.get("rationale", ""))[:600]
     except LLMClientError as e:
         return JudgeVerdict(
             judge=role,
@@ -61,6 +63,26 @@ async def _verdict(
             rationale=f"judge_error: {e}",
             raw=None,
         )
+
+    # Abstention path — honest "I can't tell" beats a noisy 0.5. The judge
+    # opted out; we record it as such and exclude from variance/mean math.
+    if raw.get("abstain") is True:
+        reason = str(raw.get("reason") or "").strip()[:800]
+        return JudgeVerdict(
+            judge=role,
+            model=f"{judge.provider}:{judge.model}",
+            score=0.0,                       # sentinel; ignored when abstained=True
+            **{"pass": False},
+            rationale=reason or "abstained without reason",
+            raw=raw,
+            abstained=True,
+            abstain_reason=reason or None,
+        )
+
+    score = float(raw.get("score", 0.0))
+    score = max(0.0, min(1.0, score))
+    passed = bool(raw.get("pass", score >= 0.75))
+    rationale = str(raw.get("rationale", ""))[:600]
     return JudgeVerdict(
         judge=role,
         model=f"{judge.provider}:{judge.model}",
@@ -81,15 +103,36 @@ async def _arbitrate(
     scenario: Scenario,
     result: AdapterResult,
 ) -> ArbitratedScore:
-    scores = [v.score for v in verdicts]
-    if len(scores) >= 2:
-        variance = statistics.variance(scores)
+    """Resolve a panel of verdicts into one ArbitratedScore.
+
+    Abstention semantics:
+      - Abstained verdicts are EXCLUDED from variance + mean computation
+        (an honest "I can't tell" shouldn't drag the score toward 0.5).
+      - When some judges score and some abstain, we use the scoring judges'
+        mean (no escalation needed unless they themselves disagree).
+      - When ALL panel members abstain, we still try the meta-judge — it
+        may have enough context to reach a verdict. If the meta-judge also
+        abstains, the role is reported with final_score=None and
+        all_abstained=True. Downstream scoring treats None as "no signal"
+        (same path as a never-configured role).
+    """
+    scoring_verdicts = [v for v in verdicts if not v.abstained]
+    abstain_count = len(verdicts) - len(scoring_verdicts)
+    all_panel_abstained = (abstain_count > 0 and len(scoring_verdicts) == 0)
+
+    scoring_scores = [v.score for v in scoring_verdicts]
+    if len(scoring_scores) >= 2:
+        variance = statistics.variance(scoring_scores)
     else:
         variance = 0.0
-    mean = statistics.fmean(scores) if scores else 0.0
+    mean = statistics.fmean(scoring_scores) if scoring_scores else 0.0
 
-    escalated = variance > cfg.arbitration_variance_threshold
+    # Escalation conditions:
+    #   1. The non-abstained judges disagree (variance over threshold), OR
+    #   2. The whole panel abstained — give the meta-judge a chance to break the tie.
+    escalated = variance > cfg.arbitration_variance_threshold or all_panel_abstained
     meta_v: JudgeVerdict | None = None
+    final: float | None
     if escalated:
         meta = cfg.meta_judge
         system = JUDGE_PROMPTS["meta"]
@@ -101,17 +144,36 @@ async def _arbitrate(
         user = render_user("meta:" + role, payload)
         try:
             raw = await call_judge(meta.provider, meta.model, system, user, meta.temperature)
-            score = max(0.0, min(1.0, float(raw.get("score", mean))))
-            passed = bool(raw.get("pass", score >= 0.75))
-            meta_v = JudgeVerdict(
-                judge=f"meta:{role}",
-                model=f"{meta.provider}:{meta.model}",
-                score=score,
-                **{"pass": passed},
-                rationale=str(raw.get("rationale", ""))[:800],
-                raw=raw,
-            )
-            final = score
+            if raw.get("abstain") is True:
+                # Meta-judge also can't tell — the whole role abstains.
+                reason = str(raw.get("reason") or "").strip()[:800]
+                meta_v = JudgeVerdict(
+                    judge=f"meta:{role}",
+                    model=f"{meta.provider}:{meta.model}",
+                    score=0.0,
+                    **{"pass": False},
+                    rationale=reason or "meta abstained without reason",
+                    raw=raw,
+                    abstained=True,
+                    abstain_reason=reason or None,
+                )
+                # If panel scoring judges had values, fall back to their mean
+                # rather than going to None — meta abstaining doesn't erase
+                # what the panel said. Only when ALL sources abstain do we
+                # surface None.
+                final = None if all_panel_abstained else mean
+            else:
+                score = max(0.0, min(1.0, float(raw.get("score", mean))))
+                passed = bool(raw.get("pass", score >= 0.75))
+                meta_v = JudgeVerdict(
+                    judge=f"meta:{role}",
+                    model=f"{meta.provider}:{meta.model}",
+                    score=score,
+                    **{"pass": passed},
+                    rationale=str(raw.get("rationale", ""))[:800],
+                    raw=raw,
+                )
+                final = score
         except LLMClientError as e:
             meta_v = JudgeVerdict(
                 judge=f"meta:{role}",
@@ -120,9 +182,16 @@ async def _arbitrate(
                 **{"pass": mean >= 0.75},
                 rationale=f"meta_judge_error: {e}; fell back to mean",
             )
-            final = mean
+            # If panel was all-abstained AND meta failed, we have no signal.
+            final = None if all_panel_abstained else mean
     else:
-        final = mean
+        # No escalation: trust the panel mean (excluding abstainers).
+        final = mean if scoring_verdicts else None
+
+    role_all_abstained = (
+        all_panel_abstained
+        and (meta_v is None or meta_v.abstained)
+    )
 
     confidence = max(0.0, 1.0 - min(1.0, variance / max(cfg.arbitration_variance_threshold * 4, 1e-6)))
     return ArbitratedScore(
@@ -133,6 +202,8 @@ async def _arbitrate(
         verdicts=verdicts,
         escalated=escalated,
         meta_judge_verdict=meta_v,
+        abstain_count=abstain_count,
+        all_abstained=role_all_abstained,
     )
 
 

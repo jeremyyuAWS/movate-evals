@@ -300,10 +300,21 @@ async def execute_run(cfg: RunConfig, dataset_path: str | None = None) -> tuple[
     )
     status, rec, findings = decide_readiness(overall_score, aggregates, scorecard)
 
+    # Statistical CIs over per-scenario mean scores + aggregate pass rate.
+    from .intervals import summarize as _summarize_ci
+
+    pass_count = sum(1 for a in aggregates if a.pass_rate >= 0.8)
+    ci = _summarize_ci(
+        overall_scores=[a.mean_score for a in aggregates],
+        pass_count=pass_count,
+        total_count=len(aggregates),
+    )
+
     headline = (
-        f"{int(round(overall_score))}/100 — "
+        f"{int(round(overall_score))}/100 "
+        f"[{ci['overall_score_ci_lo']:.0f}, {ci['overall_score_ci_hi']:.0f}] — "
         f"{status.value.replace('_', ' ').title()} "
-        f"({sum(1 for a in aggregates if a.pass_rate >= 0.8)}/{len(aggregates)} scenarios passing) "
+        f"({pass_count}/{len(aggregates)} scenarios passing) "
         f"· confidence {confidence:.2f}"
     )
 
@@ -326,8 +337,35 @@ async def execute_run(cfg: RunConfig, dataset_path: str | None = None) -> tuple[
         arbitration_stats=arb,
         deterministic_summary=det_summary,
         judge_disagreement_penalty=disagreement_penalty,
+        overall_score_ci_lo=ci["overall_score_ci_lo"],
+        overall_score_ci_hi=ci["overall_score_ci_hi"],
+        pass_rate_ci_lo=ci["pass_rate_ci_lo"],
+        pass_rate_ci_hi=ci["pass_rate_ci_hi"],
+        ci_method=ci["ci_method"],
     )
     write_json(run_dir / "report.json", report)
+
+    # Auto-emit methodology.md — standalone artifact for AI risk committees
+    # and customer audit reviewers. Captures the exact scoring math + judge
+    # panel + abstention summary for this run, so a reviewer can verify the
+    # number without reading source code.
+    try:
+        from ..reporting.methodology_doc import write_methodology_md
+        write_methodology_md(run_dir, report)
+    except Exception as e:  # pragma: no cover — non-fatal
+        log.warning(f"methodology.md generation failed: {type(e).__name__}: {e}")
+
+    # Agent Doctor — 3-tier LLM diagnostic. Reads report.json, asks Claude
+    # to produce executive summary + top 3 prescriptions + specific changes.
+    # Cached by run-content fingerprint; falls back to deterministic template
+    # when LLM unavailable. Opt-out via cfg.no_doctor.
+    if not getattr(cfg, "no_doctor", False):
+        try:
+            from ..insights.agent_doctor import generate as gen_doctor, write_doctor_artifacts
+            doctor = gen_doctor(report, allow_llm=True)
+            write_doctor_artifacts(run_dir, doctor)
+        except Exception as e:  # pragma: no cover — non-fatal
+            log.warning(f"agent_doctor generation failed: {type(e).__name__}: {e}")
 
     # Contract-shape summary for downstream tooling / CI gates.
     # Schema and methodology versions are pinned per PRD §11; bumping either is a deliberate, gated change.
@@ -345,7 +383,8 @@ async def execute_run(cfg: RunConfig, dataset_path: str | None = None) -> tuple[
         "manifest_sha256": sha256_file(run_dir / "manifest.json"),
     })
 
-    # write CSV + HTML (PDF best-effort) + business dashboard — handled by reporting module
+    # write CSV + HTML (PDF best-effort) + business dashboard + executive summary
+    from ..reporting import executive_summary
     from ..reporting.generators.csv_gen import write_scenarios_csv
     from ..reporting.generators.dashboard_gen import write_dashboard
     from ..reporting.generators.html_gen import write_html_report
@@ -356,5 +395,17 @@ async def execute_run(cfg: RunConfig, dataset_path: str | None = None) -> tuple[
     write_dashboard(run_dir / "dashboard.html", report, runs_by_scenario, cfg)
     if cfg.pdf:
         write_pdf_report(html_path, run_dir / "report.pdf")
+
+    # Manager-facing executive summary: Expected vs Actual / Correctness / Accuracy.
+    # Per the manager's process diagram. Always emitted, no extra deps.
+    snap_path = run_dir / "dataset.snapshot.jsonl"
+    snap_lines = snap_path.read_text(encoding="utf-8").splitlines() if snap_path.exists() else []
+    executive_summary.write(
+        run_dir / "manager_summary.json",
+        report=report,
+        runs_by_scenario=runs_by_scenario,
+        dataset_snapshot_lines=snap_lines,
+        backend_agent_id=cfg.adapter.agent_id,
+    )
 
     return run_dir, report

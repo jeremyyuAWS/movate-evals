@@ -91,6 +91,44 @@ def test_lyzr_ingest_produces_complete_result():
     assert expected.issubset(cats), f"missing categories: {expected - cats}"
 
 
+def test_heuristic_scenarios_carry_behavioral_category_tag():
+    """Every heuristic scenario should have a `category:<behavior>` tag in
+    addition to its `derived:<kind>` tag, so the frontend can render a
+    consistent category-pill across heuristic + LLM scenarios."""
+    ing = get_ingestor("lyzr")
+    raw = FIXTURE.read_bytes()
+    result = ing.ingest(FIXTURE, raw)
+
+    # Map of derived:<kind> → expected category:<behavior>
+    expected_mapping = {
+        "happy":                "standard",
+        "schema":               "standard",
+        "tool_sequence":        "standard",
+        "edge_threshold":       "edge",
+        "edge_threshold_above": "edge",
+        "default_rule":         "edge",
+        "forbidden":            "safety",
+        "failure":              "edge",
+        "slo":                  "performance",
+    }
+    valid_categories = {
+        "standard", "edge", "adversarial", "safety",
+        "honesty", "multi_turn", "performance", "custom",
+    }
+
+    for s in result.scenarios:
+        derived_tag = next((t for t in s.tags if t.startswith("derived:")), None)
+        category_tag = next((t for t in s.tags if t.startswith("category:")), None)
+        assert derived_tag is not None, f"{s.id}: must carry derived:<kind>"
+        assert category_tag is not None, f"{s.id}: must carry category:<behavior>"
+        kind = derived_tag.split(":", 1)[1]
+        cat = category_tag.split(":", 1)[1]
+        assert cat in valid_categories, f"{s.id}: unknown category {cat!r}"
+        assert cat == expected_mapping.get(kind, cat), (
+            f"{s.id}: kind={kind!r} should map to {expected_mapping[kind]!r}, got {cat!r}"
+        )
+
+
 def test_all_scenarios_marked_unverified_with_provenance():
     ing = get_ingestor("lyzr")
     raw = FIXTURE.read_bytes()

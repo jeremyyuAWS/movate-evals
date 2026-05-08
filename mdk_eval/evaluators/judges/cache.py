@@ -112,6 +112,58 @@ def get(provider: str, model: str, system: str, user: str, temperature: float) -
         return None
 
 
+def get_with_metadata(
+    provider: str, model: str, system: str, user: str, temperature: float,
+) -> dict[str, Any] | None:
+    """Return cached entry as `{response, created_at, hits}`, or None on miss /
+    disabled cache. Same key derivation as `get`. Used when the caller needs to
+    surface "last generated at" timestamps to the UI (e.g. Agent Doctor's
+    diagnostics tab) without a separate query."""
+    if not is_enabled():
+        return None
+    k = _key(provider, model, system, user, temperature)
+    try:
+        conn = _connect()
+        try:
+            row = conn.execute(
+                "SELECT response_json, created_at, hits FROM judge_cache "
+                "WHERE cache_key = ?", (k,),
+            ).fetchone()
+            if row is None:
+                return None
+            conn.execute(
+                "UPDATE judge_cache SET hits = hits + 1 WHERE cache_key = ?", (k,)
+            )
+            return {
+                "response": json.loads(row[0]),
+                "created_at": int(row[1]) if row[1] is not None else None,
+                "hits": int(row[2]) if row[2] is not None else 0,
+            }
+        finally:
+            conn.close()
+    except (sqlite3.Error, OSError, json.JSONDecodeError):
+        return None
+
+
+def invalidate(
+    provider: str, model: str, system: str, user: str, temperature: float,
+) -> bool:
+    """Delete the cache entry for this key. Returns True if a row was deleted.
+    Silent on any error — cache failures don't block callers."""
+    if not is_enabled():
+        return False
+    k = _key(provider, model, system, user, temperature)
+    try:
+        conn = _connect()
+        try:
+            cur = conn.execute("DELETE FROM judge_cache WHERE cache_key = ?", (k,))
+            return cur.rowcount > 0
+        finally:
+            conn.close()
+    except (sqlite3.Error, OSError):
+        return False
+
+
 def put(
     provider: str, model: str, system: str, user: str, temperature: float, response: dict[str, Any]
 ) -> None:

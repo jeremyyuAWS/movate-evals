@@ -172,22 +172,34 @@ class DeterministicCheckResult(BaseModel):
 class JudgeVerdict(BaseModel):
     judge: str                   # role e.g. "correctness"
     model: str                   # provider/model e.g. "openai:gpt-4o"
-    score: float                 # 0..1
+    score: float                 # 0..1; semantically meaningful only when abstained=False
     pass_: bool = Field(alias="pass")
     rationale: str
     raw: dict[str, Any] | None = None
+    # Honest "I can't tell" — beats a noisy 0.5. When True the judge
+    # explicitly declined to score (the prompt allows this for ambiguous
+    # cases). Excluded from arbitration math; surfaced in the report.
+    abstained: bool = False
+    abstain_reason: str | None = None
 
     model_config = {"populate_by_name": True}
 
 
 class ArbitratedScore(BaseModel):
     role: str                    # judge role
-    final_score: float
+    # final_score is None when all panel members AND the meta-judge abstained
+    # (i.e., no judge had enough signal to score). Downstream scoring treats
+    # None as "no signal" — same as a missing judge — rather than as a 0.
+    final_score: float | None = None
     confidence: float            # 1 - normalized_variance
     variance: float
     verdicts: list[JudgeVerdict]
     escalated: bool = False
     meta_judge_verdict: JudgeVerdict | None = None
+    # Abstention metadata — surfaces both individual and role-wide abstention
+    # so the report can show "1 of 2 judges abstained" or "all judges abstained".
+    abstain_count: int = 0
+    all_abstained: bool = False
 
 
 class ScenarioRunResult(BaseModel):
@@ -210,6 +222,8 @@ class ScenarioAggregate(BaseModel):
     scenario_id: str
     runs: int
     pass_rate: float
+    pass_rate_ci_lo: float = 0.0  # Wilson 95% lower bound; 0..1
+    pass_rate_ci_hi: float = 1.0  # Wilson 95% upper bound; 0..1
     mean_score: float            # 0..100
     score_variance: float
     drift_score: float           # similarity drop across runs (0=no drift)
@@ -217,6 +231,12 @@ class ScenarioAggregate(BaseModel):
     severity: Severity
     findings: list[FailureFinding] = Field(default_factory=list)
     representative_failure: ScenarioRunResult | None = None
+    # For refusal/adversarial scenarios, the "task_success" category measures
+    # "did the agent correctly refuse?" rather than "did the agent complete a
+    # task?". Bolt should relabel the row in the scorecard UI when this is
+    # "refusal_success" — the underlying number is still on 0..100 but its
+    # meaning has flipped. See BOLT_SCORING_PRD §3 / scoring.is_refusal_scenario().
+    task_success_label: Literal["task_success", "refusal_success"] = "task_success"
 
 
 class FailureFinding(BaseModel):
@@ -287,14 +307,27 @@ class RunManifest(BaseModel):
 
 
 class RunReport(BaseModel):
-    """Top-level report. Always includes overall_score, confidence, variance, status."""
+    """Top-level report. Always includes overall_score, confidence, variance, status.
+
+    Confidence vs CIs: ``confidence`` measures *judge agreement* (how often the
+    LLM judges agreed on each verdict). The new ``*_ci_*`` fields measure
+    *sampling-noise uncertainty* (how tight is our score given how few scenarios
+    and runs we have). Both are useful; they answer different questions.
+    """
     manifest: RunManifest
 
     # Headline numbers — these are the contract surface for downstream tooling.
     overall_score: float          # 0..100
-    confidence: float             # 0..1
+    confidence: float             # 0..1, judge-agreement metric (legacy)
     variance: float               # raw variance of per-run final scores (0..1 of /100)
     status: Readiness             # Status band
+
+    # Statistical CIs (added 2026-05; see runner/intervals.py for methodology).
+    overall_score_ci_lo: float = 0.0   # 0..100, percentile bootstrap
+    overall_score_ci_hi: float = 0.0   # 0..100, percentile bootstrap
+    pass_rate_ci_lo: float = 0.0       # 0..1, Wilson on aggregated pass count
+    pass_rate_ci_hi: float = 1.0       # 0..1, Wilson on aggregated pass count
+    ci_method: str = ""                # human-readable method tag, e.g. "wilson_95 / bootstrap_2000_pct_95"
 
     scorecard: Scorecard
     headline: str

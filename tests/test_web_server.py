@@ -153,6 +153,7 @@ def test_ingest_persists_via_db_calls(client):
         yield conn
 
     agent_def = {
+        "_id": "test-agent-id-abc123",  # required since the missing-_id hardening
         "name": "Test Agent",
         "agent_role": "Tester",
         "agent_instructions": "Do things.",
@@ -185,14 +186,24 @@ def test_ingest_persists_via_db_calls(client):
 # ----------------------------- runs -----------------------------
 
 
-def test_queue_run_returns_job_id(client):
-    """Happy path: POST /api/runs returns a job_id and queues."""
+def test_queue_run_returns_job_id_and_enqueues(client):
+    """Happy path: POST /api/runs returns a job_id, inserts the row, and
+    pushes a message into the pgmq queue (atomic with the row insert)."""
     from contextlib import contextmanager
     from unittest.mock import MagicMock
+
+    enqueue_calls: list = []
+
+    def fake_execute(sql, params=()):
+        # Capture the pgmq.send call so the test can assert on the enqueue.
+        if "pgmq.send" in str(sql).lower():
+            enqueue_calls.append((sql, params))
+        return None
 
     @contextmanager
     def fake_connect():
         cur = MagicMock()
+        cur.execute.side_effect = fake_execute
         # get_agent_and_scenario_set fetchone (agent), then fetchone (set),
         # then list_scenarios fetchall, then insert_job fetchone.
         cur.fetchone.side_effect = [
@@ -209,9 +220,7 @@ def test_queue_run_returns_job_id(client):
         conn.cursor.return_value = cur
         yield conn
 
-    # Don't actually fire the background task.
-    with patch("mdk_eval.web.server.db.connect", fake_connect), \
-         patch("mdk_eval.web.server.jobs.submit") as submit_mock:
+    with patch("mdk_eval.web.server.db.connect", fake_connect):
         r = client.post(
             "/api/runs",
             headers=_auth(),
@@ -227,7 +236,10 @@ def test_queue_run_returns_job_id(client):
     assert r.status_code == 200, r.text
     assert r.json()["status"] == "queued"
     assert r.json()["job_id"].startswith("job-")
-    submit_mock.assert_called_once()
+    # The pgmq.send call must have happened — atomic enqueue with row insert.
+    assert len(enqueue_calls) == 1, f"expected exactly 1 pgmq.send call, got {len(enqueue_calls)}"
+    # Payload must contain the same job_id we returned to the caller.
+    assert r.json()["job_id"] in str(enqueue_calls[0][1])
 
 
 def test_queue_run_rejects_unknown_agent(client):

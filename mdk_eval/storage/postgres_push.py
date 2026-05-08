@@ -110,6 +110,32 @@ def _scenario_run_artifacts(run_dir: Path, scenario_id: str) -> list[dict[str, A
     return out
 
 
+def _scenario_payloads_by_id(run_dir: Path) -> dict[str, dict[str, Any]]:
+    """Build {scenario_id -> full scenario payload} from dataset.snapshot.jsonl.
+
+    The dataset snapshot is the source of truth for the test definition: input
+    prompt, expected output, assertions, derived_from provenance, etc. The
+    dashboard's per-scenario drawer renders these so users can see what the
+    test was actually checking — not just whether it passed.
+    """
+    snap = run_dir / "dataset.snapshot.jsonl"
+    if not snap.exists():
+        return {}
+    out: dict[str, dict[str, Any]] = {}
+    for line in snap.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        sid = payload.get("id")
+        if sid:
+            out[sid] = payload
+    return out
+
+
 # ----------------------------- schema management -----------------------------
 
 
@@ -151,6 +177,11 @@ def push_run(
     report = art["report"]
     aggregates = art["aggregates"]
     config = art["config"]
+
+    # Pull the original scenario definitions so we can stamp them onto each
+    # scenario_aggregate row. This is what makes the dashboard's "Expected
+    # vs Actual" drawer actually meaningful for CLI-pushed runs.
+    scenario_payloads = _scenario_payloads_by_id(run_dir)
 
     counts = {
         "engagement": 0, "agent": 0, "run": 0, "evaluation_summary": 0,
@@ -277,31 +308,83 @@ def push_run(
             )
             counts["evaluation_summary"] = 1
 
-            # ---- scenario_aggregate + finding ----
-            for agg in aggregates:
+            # ---- agent.is_active flip (per migration 008) ----
+            # An agent that successfully produced an evaluation_summary has
+            # earned its place in the default portfolio view. This UPDATE is
+            # idempotent (re-pushing the same run leaves is_active=true).
+            # Tolerates pre-migration-008 schemas by rolling back the failed
+            # statement and continuing — the column simply doesn't exist yet.
+            try:
                 cur.execute(
-                    """
-                    INSERT INTO scenario_aggregate
-                      (run_id, scenario_id, severity, pass_rate, mean_score,
-                       score_variance, drift_score, consistency_score, num_runs,
-                       tags, category_scores)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    RETURNING id
-                    """,
-                    (
-                        run_pk,
-                        agg["scenario_id"],
-                        agg["severity"],
-                        agg["pass_rate"],
-                        agg["mean_score"],
-                        agg["score_variance"],
-                        agg["drift_score"],
-                        agg["consistency_score"],
-                        agg.get("runs", agg.get("num_runs", 1)),
-                        agg.get("tags") or [],
-                        Json(agg.get("category_scores")) if agg.get("category_scores") else None,
-                    ),
+                    "UPDATE agent SET is_active = TRUE WHERE id = %s AND is_active = FALSE",
+                    (agent_id,),
                 )
+            except psycopg.errors.UndefinedColumn:
+                cur.connection.rollback()
+
+            # ---- scenario_aggregate + finding ----
+            # Detect migration 003 (scenario_payload column) once before the
+            # loop so we don't try-and-rollback per row.
+            cur.execute("""
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema='public' AND table_name='scenario_aggregate'
+                  AND column_name='scenario_payload'
+            """)
+            has_payload_col = cur.fetchone() is not None
+
+            for agg in aggregates:
+                payload = scenario_payloads.get(agg["scenario_id"])
+                if has_payload_col:
+                    cur.execute(
+                        """
+                        INSERT INTO scenario_aggregate
+                          (run_id, scenario_id, severity, pass_rate, mean_score,
+                           score_variance, drift_score, consistency_score, num_runs,
+                           tags, category_scores, scenario_payload)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING id
+                        """,
+                        (
+                            run_pk,
+                            agg["scenario_id"],
+                            agg["severity"],
+                            agg["pass_rate"],
+                            agg["mean_score"],
+                            agg["score_variance"],
+                            agg["drift_score"],
+                            agg["consistency_score"],
+                            agg.get("runs", agg.get("num_runs", 1)),
+                            agg.get("tags") or [],
+                            Json(agg.get("category_scores")) if agg.get("category_scores") else None,
+                            Json(payload) if payload else None,
+                        ),
+                    )
+                else:
+                    # Pre-migration-003 fallback: omit scenario_payload so older
+                    # databases keep working. The drawer just won't show test definitions.
+                    cur.execute(
+                        """
+                        INSERT INTO scenario_aggregate
+                          (run_id, scenario_id, severity, pass_rate, mean_score,
+                           score_variance, drift_score, consistency_score, num_runs,
+                           tags, category_scores)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING id
+                        """,
+                        (
+                            run_pk,
+                            agg["scenario_id"],
+                            agg["severity"],
+                            agg["pass_rate"],
+                            agg["mean_score"],
+                            agg["score_variance"],
+                            agg["drift_score"],
+                            agg["consistency_score"],
+                            agg.get("runs", agg.get("num_runs", 1)),
+                            agg.get("tags") or [],
+                            Json(agg.get("category_scores")) if agg.get("category_scores") else None,
+                        ),
+                    )
                 aggregate_pk = cur.fetchone()[0]
                 counts["scenario_aggregates"] += 1
 

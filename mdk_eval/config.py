@@ -74,6 +74,10 @@ class RunConfig(BaseModel):
     client_logo_path: str | None = None
     movate_logo_path: str | None = None
     confidentiality_footer: str = "Confidential — prepared by Movate Agent Assurance."
+    # Agent Doctor (Rx) — auto-emit a 3-tier diagnostic alongside report.json.
+    # Set True to skip the LLM-narrated diagnosis (saves ~$0.02/run, useful in
+    # CI where you want a smoke run without LLM dependency).
+    no_doctor: bool = False
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "RunConfig":

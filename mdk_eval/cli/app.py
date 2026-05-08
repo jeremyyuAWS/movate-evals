@@ -240,9 +240,21 @@ def _enforce_gate(report, baseline_dir: Path, threshold: float) -> None:
 @app.command()
 def report(
     results: Optional[str] = typer.Option(None, "--results", "-r", help="Path to a run dir. If omitted, you'll be prompted to pick one."),
-    fmt: str = typer.Option("html", "--format", "-f", help="Comma list: html,pdf,json,csv"),
+    fmt: str = typer.Option("html", "--format", "-f", help="Comma list: html, pdf, json, csv, dashboard, manager-summary"),
 ):
-    """Re-generate report artifacts from a saved run dir."""
+    """Re-generate report artifacts from a saved run dir.
+
+    Formats:
+      html             — engineering report (Movate-branded HTML, embeds the Vega-Lite chart)
+      pdf              — same content as html, rendered via WeasyPrint (best-effort)
+      json             — full RunReport as report.json
+      csv              — flat per-scenario table
+      dashboard        — business-user dashboard (KPI tiles + plain-English narrative)
+      manager-summary  — executive JSON: Expected vs Actual, Correctness, Accuracy
+                         (the shape from the manager's process diagram)
+
+    Pass any subset, comma-separated, e.g. `-f html,manager-summary`.
+    """
     run_dir = _resolve_results_dir(results, prompt="Pick a run to re-report")
     if not (run_dir / "report.json").exists():
         raise typer.BadParameter(f"Not a run dir: {run_dir}")
@@ -284,6 +296,24 @@ def report(
 
         write_scenarios_csv(run_dir / "scenarios.csv", rep.scenario_aggregates, runs_by_scenario)
         log.info("CSV refreshed.")
+    if "dashboard" in formats:
+        from ..reporting.generators.dashboard_gen import write_dashboard
+
+        write_dashboard(run_dir / "dashboard.html", rep, runs_by_scenario, cfg)
+        log.info("Dashboard refreshed.")
+    if "manager-summary" in formats or "manager_summary" in formats:
+        from ..reporting import executive_summary
+
+        snap_path = run_dir / "dataset.snapshot.jsonl"
+        snap_lines = snap_path.read_text(encoding="utf-8").splitlines() if snap_path.exists() else []
+        executive_summary.write(
+            run_dir / "manager_summary.json",
+            report=rep,
+            runs_by_scenario=runs_by_scenario,
+            dataset_snapshot_lines=snap_lines,
+            backend_agent_id=cfg.adapter.agent_id,
+        )
+        log.info(f"Manager summary written: {run_dir / 'manager_summary.json'}")
 
 
 # ----------------------------- compare -----------------------------
@@ -572,6 +602,139 @@ def ingest(
     console().print("[dim]Next:  mdk-eval run --config " + str(cfg_path) + "  (after reviewing the dataset)[/dim]")
 
 
+# ----------------------------- ab -----------------------------
+
+
+@app.command("ab")
+def ab_cmd(
+    config_a: str = typer.Option(..., "--config-a", "-a", help="YAML config for variant A (e.g. configs/prompt_v1.yaml)."),
+    config_b: str = typer.Option(..., "--config-b", "-b", help="YAML config for variant B (e.g. configs/prompt_v2.yaml)."),
+    dataset: Optional[str] = typer.Option(None, "--dataset", "-d", help="Override the dataset on both configs so A and B run against identical inputs. If omitted, each config uses its own dataset (only sensible if they already match)."),
+    label_a: str = typer.Option("A", "--label-a", help="Display label for variant A."),
+    label_b: str = typer.Option("B", "--label-b", help="Display label for variant B."),
+    out: Optional[str] = typer.Option(None, "--out", "-o", help="Where to write the markdown side-by-side report. Defaults to stdout."),
+    json_out: Optional[str] = typer.Option(None, "--json-out", help="Optional path to write the structured ABDiff JSON (machine-readable)."),
+    parallel: bool = typer.Option(False, "--parallel", help="Run both configs concurrently. Off by default — real LLM backends rate-limit aggressively."),
+):
+    """Run two configs against the same dataset and produce a side-by-side diff.
+
+    Use this for prompt A/B testing, model comparisons, before/after a config
+    change, or any other "did this change make things better?" question.
+
+    The composite delta (b - a) is the headline number. Per-scenario rows are
+    flagged 'REGRESSION' / 'improvement' / 'stable' against a 5-point band.
+    """
+    from .ab import build_diff, render_ab_markdown, run_ab
+
+    cfg_a = _load_config(config_a)
+    cfg_b = _load_config(config_b)
+
+    ds_path = Path(dataset) if dataset else None
+    (run_a_dir, report_a), (run_b_dir, report_b) = run_ab(
+        cfg_a, cfg_b, dataset_override=ds_path, parallel=parallel
+    )
+
+    diff = build_diff(run_a_dir, report_a, run_b_dir, report_b, label_a=label_a, label_b=label_b)
+    md = render_ab_markdown(diff)
+
+    if out:
+        Path(out).write_text(md)
+        console().print(f"[green]Markdown report written to[/green] [cyan]{out}[/cyan]")
+    else:
+        # Stdout: write directly so it composes with redirection / piping.
+        import sys
+        sys.stdout.write(md)
+        sys.stdout.flush()
+
+    if json_out:
+        Path(json_out).write_text(json.dumps(diff.model_dump(mode="json"), indent=2, default=str))
+        console().print(f"[green]JSON diff written to[/green] [cyan]{json_out}[/cyan]")
+
+    # One-line headline regardless of --out
+    if diff.regressions > 0 and diff.overall_delta <= -2.0:
+        console().print(f"[bold red]REGRESSION[/bold red]: {diff.label_b} score {diff.overall_delta:+.1f} vs {diff.label_a}")
+    elif diff.improvements > 0 and diff.overall_delta >= 2.0:
+        console().print(f"[bold green]Improvement[/bold green]: {diff.label_b} score {diff.overall_delta:+.1f} vs {diff.label_a}")
+    else:
+        console().print(f"[dim]No clear winner: composite delta {diff.overall_delta:+.1f} is within noise[/dim]")
+
+
+# ----------------------------- promote-failure -----------------------------
+
+
+@app.command("promote-failure")
+def promote_failure_cmd(
+    results: Optional[str] = typer.Option(None, "--results", "-r", help="Saved run dir to promote from. If omitted, you'll be prompted to pick one."),
+    scenario: str = typer.Option(..., "--scenario", "-s", help="Scenario id to promote (must have failed at least one run in the saved run)."),
+    run_index: Optional[int] = typer.Option(None, "--run-index", help="Specific run index to use; defaults to the worst-scoring run for this scenario."),
+    target: Optional[str] = typer.Option(None, "--target", "-t", help="Append the new scenario to this JSONL dataset. If omitted, prints to stdout (composes with jq, redirection)."),
+    note: Optional[str] = typer.Option(None, "--note", help="Free-text reviewer note recorded in the new scenario's provenance metadata."),
+    new_id: Optional[str] = typer.Option(None, "--id", help="Override the auto-generated id for the new scenario."),
+    show_tightening: bool = typer.Option(False, "--show-tightening", help="Print the constraint tightening summary (what's being added beyond the original)."),
+):
+    """Promote a failing scenario from a saved run into a tightened test.
+
+    The new scenario inherits the original's input/context but adds explicit
+    constraints encoding the *specific* failure mode the agent exhibited:
+    forbidden phrases the agent said, required fields it omitted, claims it
+    hallucinated. The agent must now actively defend against the same mistake
+    on every future run.
+
+    This is the HITL closure of the eval loop — turn observed failures into
+    durable regression tests in one command.
+    """
+    from .promote import PromoteError, append_to_dataset, promote_failure
+
+    src = _resolve_results_dir(results, prompt="Pick a run to promote a failure from")
+    try:
+        result = promote_failure(
+            src,
+            scenario_id=scenario,
+            run_index=run_index,
+            note=note,
+            override_id=new_id,
+        )
+    except PromoteError as e:
+        raise typer.BadParameter(str(e))
+
+    if show_tightening:
+        t = result.tightening
+        c = console()
+        c.print(f"[bold]Promotion summary[/bold] — {result.source_scenario_id} (run {result.source_run_index}, score {result.source_final_score:.1f})")
+        if t.added_forbidden_phrases:
+            c.print(f"  [yellow]+ forbidden_phrases:[/yellow] {t.added_forbidden_phrases}")
+        if t.added_required_fields:
+            c.print(f"  [yellow]+ required_fields:[/yellow] {t.added_required_fields}")
+        if t.added_forbidden_claims:
+            c.print(f"  [yellow]+ forbidden_claims:[/yellow] {len(t.added_forbidden_claims)} added")
+        if t.notes:
+            for n in t.notes:
+                c.print(f"  [dim]· {n}[/dim]")
+        if not (t.added_forbidden_phrases or t.added_required_fields or t.added_forbidden_claims):
+            c.print("  [dim](no new constraints to add — all failures are caught by existing checks; the rerun is the verification.)[/dim]")
+        c.print()
+
+    payload_line = json.dumps(result.new_scenario, separators=(",", ":")) + "\n"
+
+    if target:
+        target_path = Path(target)
+        try:
+            append_to_dataset(target_path, result.new_scenario)
+        except PromoteError as e:
+            raise typer.BadParameter(str(e))
+        console().print(
+            f"[green]Promoted[/green] [cyan]{result.source_scenario_id}[/cyan] → "
+            f"[cyan]{result.new_scenario['id']}[/cyan] in [cyan]{target_path}[/cyan]"
+        )
+    else:
+        # No target — write the JSONL line to stdout. Use sys.stdout so it
+        # composes cleanly with shell pipes (the rich console wraps lines and
+        # adds ANSI codes, which would break `... | jq`).
+        import sys
+        sys.stdout.write(payload_line)
+        sys.stdout.flush()
+
+
 @app.command()
 def export(
     fmt: str = typer.Option("promptfoo", "--format", "-f", help="Export format: promptfoo"),
@@ -687,6 +850,39 @@ def doctor(
     code = run_doctor(dataset=dataset, endpoint=endpoint)
     if code != 0:
         raise typer.Exit(code=code)
+
+
+@app.command("rx")
+def rx_cmd(
+    results: Optional[str] = typer.Option(None, "--results", "-r", help="Saved run dir to diagnose. If omitted, you'll be prompted."),
+    no_llm: bool = typer.Option(False, "--no-llm", help="Skip the LLM call (use template-only fallback). Useful in CI."),
+    show: bool = typer.Option(True, "--show/--no-show", help="Print the markdown diagnosis to stdout after writing artifacts."),
+):
+    """Agent Doctor (Rx) — generate a 3-tier diagnostic from a saved run.
+
+    Reads the run's `report.json`, asks Claude Sonnet 4.6 to produce:
+      Tier 1: executive summary + headline action
+      Tier 2: top 3 prescriptions (cited, confidence-tagged)
+      Tier 3: specific suggested changes to the agent definition
+
+    Writes `agent_doctor.md` + `agent_doctor.json` into the run dir.
+    Cached by run-content fingerprint — re-running on the same run is $0.
+    """
+    src = _resolve_results_dir(results, prompt="Pick a run to diagnose")
+    report = _load_report(src)
+    from ..insights.agent_doctor import generate as gen_doctor, write_doctor_artifacts
+
+    doctor = gen_doctor(report, allow_llm=not no_llm)
+    md_path, json_path = write_doctor_artifacts(src, doctor)
+    console().print(
+        f"[green]Agent Doctor diagnosis written:[/green]\n"
+        f"  • [cyan]{md_path}[/cyan]\n"
+        f"  • [cyan]{json_path}[/cyan]\n"
+        f"  source: [bold]{doctor.source}[/bold] · confidence: [bold]{doctor.confidence}[/bold]"
+    )
+    if show:
+        console().print()
+        console().print(md_path.read_text())
 
 
 @app.command()

@@ -41,6 +41,13 @@ web = [
   "python-multipart>=0.0.9",
   "psycopg[binary]>=3.1",
 ]
+observability = [
+  # Auto-instruments FastAPI + httpx + psycopg + logging into Application Insights.
+  "azure-monitor-opentelemetry>=1.6",
+  "opentelemetry-instrumentation-fastapi>=0.48b0",
+  # LLM-call traces (judges / adapter / extractor). Optional at runtime; gated by env.
+  "langfuse>=2.30,<3.0",
+]
 dev = [
   "pytest>=8.1",
   "pytest-asyncio>=0.23",

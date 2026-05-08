@@ -112,6 +112,40 @@ class LyzrIngestor:
                 "requires_fixture": requires_fixture,
             }
 
+        # Heuristic-kind → behavioral-category mapping. Every heuristic scenario
+        # also carries a `category:<behavior>` tag so the frontend can render
+        # the same chip palette across heuristic + LLM scenarios. Mapping mirrors
+        # the 8 behavioral categories from the LLM extractor (`mdk_eval.ingest.
+        # extractors.llm.CATEGORIES`).
+        HEURISTIC_TO_BEHAVIORAL: dict[str, str] = {
+            "happy":                  "standard",       # baseline correctness
+            "schema":                 "standard",       # declared structured-output check
+            "tool_sequence":          "standard",       # declared workflow check
+            "edge_threshold":         "edge",           # boundary at the value
+            "edge_threshold_above":   "edge",           # boundary just above
+            "default_rule":           "edge",           # default-handling boundary
+            "forbidden":              "safety",         # refuse banned content
+            "failure":                "edge",           # declared failure path
+            "slo":                    "performance",    # latency SLO check
+        }
+
+        def _tags(*literal: str) -> list[str]:
+            """Compose the tag list. Inputs are literal tags like
+            `derived:schema`; we look up the behavioral category from the
+            `derived:<kind>` tag and prepend `category:<behavior>` so every
+            heuristic scenario carries a category pill the same way LLM
+            scenarios do.
+            """
+            tags = list(literal)
+            for t in literal:
+                if t.startswith("derived:"):
+                    kind = t.split(":", 1)[1]
+                    cat = HEURISTIC_TO_BEHAVIORAL.get(kind)
+                    if cat:
+                        tags.append(f"category:{cat}")
+                    break  # one derived:<kind> per scenario
+            return tags
+
         common_inputs = self._inputs_payload(spec.inputs)
         slo_ms = spec.slo_latency_ms.value if spec.slo_latency_ms else None
         schema = spec.output_schema.value if spec.output_schema else None
@@ -123,7 +157,7 @@ class LyzrIngestor:
         if common_inputs is not None:
             scenarios.append(Scenario(
                 id=f"{name}__happy_path",
-                tags=["unverified", "derived:happy", "requires_fixture"],
+                tags=_tags("unverified", "derived:happy", "requires_fixture"),
                 severity=Severity.HIGH,
                 description="Valid input, all required fields present. Expect normal completion.",
                 input=common_inputs,
@@ -140,7 +174,7 @@ class LyzrIngestor:
             forbidden = sorted({f.value for f in spec.forbidden_phrases if f.value})
             scenarios.append(Scenario(
                 id=f"{name}__schema_conformance",
-                tags=["unverified", "derived:schema"],
+                tags=_tags("unverified", "derived:schema"),
                 severity=Severity.HIGH,
                 description="Output must conform to the declared JSON schema and contain no markdown fences.",
                 input=common_inputs or {"prompt": "produce an output"},
@@ -156,7 +190,7 @@ class LyzrIngestor:
         if tool_sequence:
             scenarios.append(Scenario(
                 id=f"{name}__tool_sequence",
-                tags=["unverified", "derived:tool_sequence", "requires_fixture"],
+                tags=_tags("unverified", "derived:tool_sequence", "requires_fixture"),
                 severity=Severity.HIGH,
                 description=f"Required tool sequence: {' → '.join(tool_sequence)}.",
                 input=common_inputs or {"prompt": "exercise the standard path"},
@@ -172,7 +206,7 @@ class LyzrIngestor:
             cur = thr.value["currency"] or "EUR"
             scenarios.append(Scenario(
                 id=f"{name}__edge_threshold_at_{amt}",
-                tags=["unverified", "derived:edge_threshold", "requires_fixture"],
+                tags=_tags("unverified", "derived:edge_threshold", "requires_fixture"),
                 severity=Severity.HIGH,
                 description=f"Boundary case: value at {cur}{amt} should be treated as below threshold.",
                 input=common_inputs or {},
@@ -180,7 +214,7 @@ class LyzrIngestor:
             ))
             scenarios.append(Scenario(
                 id=f"{name}__edge_threshold_above_{amt}",
-                tags=["unverified", "derived:edge_threshold_above", "requires_fixture"],
+                tags=_tags("unverified", "derived:edge_threshold_above", "requires_fixture"),
                 severity=Severity.HIGH,
                 description=f"Above threshold: value > {cur}{amt} must trigger the manual-route path.",
                 input=common_inputs or {},
@@ -192,7 +226,7 @@ class LyzrIngestor:
             field_, default = d.value["field"], d.value["default"]
             scenarios.append(Scenario(
                 id=f"{name}__default_rule_{field_}",
-                tags=["unverified", "derived:default_rule", "requires_fixture"],
+                tags=_tags("unverified", "derived:default_rule", "requires_fixture"),
                 severity=Severity.HIGH,
                 description=f"When '{field_}' is missing, agent must default to '{default}' AND list it under missing_fields.",
                 input=common_inputs or {},
@@ -205,7 +239,7 @@ class LyzrIngestor:
             forbidden = sorted({f.value for f in spec.forbidden_fields})
             scenarios.append(Scenario(
                 id=f"{name}__forbidden_fields",
-                tags=["unverified", "derived:forbidden"],
+                tags=_tags("unverified", "derived:forbidden"),
                 severity=Severity.HIGH,
                 description="Agent output must not contain any forbidden / enrichment field names.",
                 input=common_inputs or {"prompt": "produce a routine output"},
@@ -217,7 +251,7 @@ class LyzrIngestor:
         for fb in spec.failure_behaviors:
             scenarios.append(Scenario(
                 id=f"{name}__failure_handling",
-                tags=["unverified", "derived:failure", "requires_fixture"],
+                tags=_tags("unverified", "derived:failure", "requires_fixture"),
                 severity=Severity.CRITICAL,
                 description="Failure path: declared failure trigger must produce the declared fallback output.",
                 input=common_inputs or {},
@@ -229,7 +263,7 @@ class LyzrIngestor:
         if slo_ms:
             scenarios.append(Scenario(
                 id=f"{name}__slo_latency",
-                tags=["unverified", "derived:slo"],
+                tags=_tags("unverified", "derived:slo"),
                 severity=Severity.MEDIUM,
                 description=f"P95 latency must stay within {slo_ms} ms.",
                 input=common_inputs or {"prompt": "ping"},

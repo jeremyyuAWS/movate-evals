@@ -17,28 +17,48 @@ import tempfile
 import traceback
 from pathlib import Path
 
-from . import db
+import psycopg
+
+from . import cost, db
 from ..config import AdapterConfig, JudgesConfig, RunConfig
 from ..runner.orchestrator import execute_run
 from ..storage import postgres_push
 
 
 async def execute_job(job_id: str) -> None:
-    """Top-level entry point — runs the full eval pipeline for one job_id."""
+    """Top-level entry point — runs the full eval pipeline for one job_id.
+
+    Emits structured events at each lifecycle transition so Application
+    Insights can show eval throughput / failure rate without the operator
+    having to scrape Postgres.
+    """
+    # Bind the job_id as the trace_id for this whole task — lets us correlate
+    # every log line, every judge call, every DB write inside this job.
     try:
-        await _execute_job_inner(job_id)
-    except Exception as e:  # pragma: no cover — tested via wrappers
-        # Catch-all so an exception never leaves the background task crashing
-        # the Uvicorn worker. Mark the job failed with the error visible to the
-        # caller via GET /api/runs/{job_id}.
-        with db.connect() as conn, conn.cursor() as cur:
-            db.update_job_status(
-                cur, job_id,
-                status="failed",
-                error_message=f"{type(e).__name__}: {e}\n{traceback.format_exc()[-1500:]}",
-                ended=True,
-            )
-            conn.commit()
+        from .observability import emit_event, trace_context
+    except ImportError:
+        emit_event = lambda *a, **k: None  # noqa: E731
+        from contextlib import nullcontext
+        trace_context = lambda **k: nullcontext((k.get("trace_id"), k.get("trace_id")))  # noqa: E731
+
+    with trace_context(trace_id=job_id):
+        emit_event("job.started", job_id=job_id)
+        try:
+            await _execute_job_inner(job_id)
+            emit_event("job.completed", job_id=job_id)
+        except Exception as e:
+            # Catch-all so an exception never leaves the background task crashing
+            # the Uvicorn worker. Mark the job failed with the error visible to the
+            # caller via GET /api/runs/{job_id}.
+            emit_event("job.failed", job_id=job_id, error=f"{type(e).__name__}: {e}")
+            with db.connect() as conn, conn.cursor() as cur:
+                db.update_job_status(
+                    cur, job_id,
+                    status="failed",
+                    error_message=f"{type(e).__name__}: {e}\n{traceback.format_exc()[-1500:]}",
+                    ended=True,
+                )
+                conn.commit()
 
 
 async def _execute_job_inner(job_id: str) -> None:
@@ -153,6 +173,16 @@ async def _execute_job_inner(job_id: str) -> None:
             overall_score = float(row[1]) if row and row[1] is not None else None
             result_status = row[2] if row else None
 
+            # Estimate cost the same way the preview endpoint does, but using
+            # the actual scenario count + judges_enabled + runs_per_scenario
+            # this run actually used. Stored on the row for cheap portfolio
+            # cost rollups.
+            est = cost.estimate_run_cost(
+                num_scenarios=len(scenarios),
+                runs_per_scenario=runs_per_scenario,
+                judges_enabled=judges_enabled,
+            )
+
             db.update_job_status(
                 cur, job_id,
                 status="done",
@@ -160,18 +190,55 @@ async def _execute_job_inner(job_id: str) -> None:
                 result_run_id=result_run_id,
                 overall_score=overall_score,
                 result_status=result_status,
+                cost_usd=est.estimated_cost_usd,
                 ended=True,
             )
+
+            # Provisional → Active state transition. Per migration 008, an
+            # agent stays provisional (is_active=false) until it produces a
+            # real successful run. We use the presence of an evaluation_summary
+            # row as the success signal — that row is only inserted by
+            # postgres_push when scoring fully completes. Failed runs (no
+            # eval_summary) keep the agent provisional, so it stays out of
+            # the default portfolio view until a real run lands.
+            if result_run_id is not None and overall_score is not None:
+                try:
+                    cur.execute(
+                        "UPDATE agent SET is_active = TRUE WHERE id = %s AND is_active = FALSE",
+                        (agent_id,),
+                    )
+                except psycopg.errors.UndefinedColumn:
+                    # Pre-migration-008 — column doesn't exist yet. The CLI
+                    # path or a stale schema may have skipped the migration;
+                    # tolerate it so eval execution still completes.
+                    cur.connection.rollback()
+
             conn.commit()
 
 
 def _build_adapter_config(agent_meta: dict) -> AdapterConfig:
-    """Map an agent row into an AdapterConfig that execute_run() accepts."""
+    """Map an agent row into an AdapterConfig that execute_run() accepts.
+
+    Raises ValueError with an actionable message (citing the agent slug) when
+    a required field is missing — better than letting the adapter factory
+    raise a generic "requires 'agent_id'" deeper in the run pipeline, which
+    surfaces to the user as a confusing run failure with no diagnostic.
+    """
     backend = agent_meta["backend"]
     if backend == "lyzr":
+        if not agent_meta.get("backend_id"):
+            slug = agent_meta.get("slug", "(unknown agent)")
+            raise ValueError(
+                f"Agent '{slug}' has no Lyzr agent_id stored — cannot dispatch "
+                "evaluation. The agent record's backend_id is empty, which "
+                "happens when the upload JSON didn't include `_id`, `id`, or "
+                "`agent_id` at the top level. Re-upload the agent definition "
+                "with the Lyzr agent ID present, or PATCH "
+                f"/api/agents/{agent_meta.get('id', '<id>')} to set it."
+            )
         return AdapterConfig(
             target="lyzr",
-            agent_id=agent_meta["backend_id"] or "",
+            agent_id=agent_meta["backend_id"],
             api_key_env="LYZR_API_KEY",
             response_text_path="$.response",
             timeout_s=60.0,

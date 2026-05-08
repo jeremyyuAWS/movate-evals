@@ -37,5 +37,37 @@ def installed_version(pkg: str) -> str:
 
 
 def tool_versions() -> dict[str, str]:
-    tracked = ["openai", "anthropic", "deepeval", "langfuse", "httpx", "pydantic", "jinja2"]
+    """Snapshot of installed-package versions that affect eval results.
+
+    Captured at run-execution time and pinned to the run's `tool_versions`
+    column. The provenance endpoint also re-introspects this at query time
+    so the audit trail can spot drift between execution and inspection.
+
+    Tracked groups:
+      - LLM provider SDKs    (openai, anthropic) — what we actually call
+      - RAG eval libraries   (deepeval, ragas, trulens-eval) — RAG metric source-of-truth
+      - Observability        (langfuse, opentelemetry-api)
+      - Core deps            (httpx, pydantic, jinja2) — request/templating layer
+      - mdk_eval itself      — pin our own version explicitly
+    """
+    tracked = [
+        # LLM provider SDKs — direct callers
+        "openai",
+        "anthropic",
+        # RAG metric libraries — deepeval is the in-tree integration; ragas
+        # and trulens-eval are surface-area for future RAG-metric pluggability.
+        # When not installed, `installed_version` returns "not-installed".
+        "deepeval",
+        "ragas",
+        "trulens-eval",
+        # Observability
+        "langfuse",
+        "opentelemetry-api",
+        # Core deps
+        "httpx",
+        "pydantic",
+        "jinja2",
+        # Our own version — useful for audit cross-reference with manifest
+        "mdk-eval",
+    ]
     return {p: installed_version(p) for p in tracked}

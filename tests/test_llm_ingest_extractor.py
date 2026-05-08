@@ -74,19 +74,21 @@ def test_extract_returns_empty_when_unavailable(monkeypatch):
 
 
 def test_extract_parses_well_formed_response(monkeypatch):
+    """With a single-category mix, extract() makes one LLM call."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
     async def fake_call(*_a, **_k):
         return GOOD_LLM_RESPONSE
 
     with patch("mdk_eval.evaluators.judges.llm_clients.call_judge", side_effect=fake_call):
-        proposed = llm_extractor.extract(SAMPLE_AGENT_DEF)
+        proposed = llm_extractor.extract(SAMPLE_AGENT_DEF, mix={"standard": 3})
 
     assert len(proposed) == 3
     ids = [p.id for p in proposed]
     assert "happy_what_does_movate_do" in ids
     assert "edge_off_topic_weather" in ids
     assert all(p.constraint_quote for p in proposed), "every proposal must cite a constraint quote"
+    assert all(p.category == "standard" for p in proposed), "all should carry the requested category"
 
 
 def test_extract_handles_malformed_proposals(monkeypatch):
@@ -107,7 +109,7 @@ def test_extract_handles_malformed_proposals(monkeypatch):
         return mixed
 
     with patch("mdk_eval.evaluators.judges.llm_clients.call_judge", side_effect=fake_call):
-        proposed = llm_extractor.extract(SAMPLE_AGENT_DEF)
+        proposed = llm_extractor.extract(SAMPLE_AGENT_DEF, mix={"standard": 4})
     assert len(proposed) == 1
     assert proposed[0].id == "good_one"
 
@@ -120,7 +122,7 @@ def test_extract_returns_empty_on_llm_failure(monkeypatch):
         raise RuntimeError("network blew up")
 
     with patch("mdk_eval.evaluators.judges.llm_clients.call_judge", side_effect=boom):
-        result = llm_extractor.extract(SAMPLE_AGENT_DEF)
+        result = llm_extractor.extract(SAMPLE_AGENT_DEF, mix={"standard": 3})
     assert result == []
 
 
@@ -132,7 +134,7 @@ def test_to_scenario_dict_conforms_to_scenario_model(monkeypatch):
         return GOOD_LLM_RESPONSE
 
     with patch("mdk_eval.evaluators.judges.llm_clients.call_judge", side_effect=fake_call):
-        proposed = llm_extractor.extract(SAMPLE_AGENT_DEF)
+        proposed = llm_extractor.extract(SAMPLE_AGENT_DEF, mix={"standard": 3})
 
     for p in proposed:
         sd = llm_extractor.to_scenario_dict(
@@ -175,7 +177,7 @@ def test_multi_turn_proposal_round_trips(monkeypatch):
         return multi_turn_response
 
     with patch("mdk_eval.evaluators.judges.llm_clients.call_judge", side_effect=fake_call):
-        proposed = llm_extractor.extract(SAMPLE_AGENT_DEF)
+        proposed = llm_extractor.extract(SAMPLE_AGENT_DEF, mix={"multi_turn": 1})
 
     assert len(proposed) == 1
     sd = llm_extractor.to_scenario_dict(
@@ -198,7 +200,7 @@ def test_extract_uses_judge_cache(monkeypatch, tmp_path):
 
     call_count = {"n": 0}
 
-    async def counting_call(provider, model, system, user, temperature):
+    async def counting_call(provider, model, system, user, temperature, **kwargs):
         call_count["n"] += 1
         # Have to populate the cache like a real call would
         from mdk_eval.evaluators.judges import cache as judge_cache
@@ -207,14 +209,119 @@ def test_extract_uses_judge_cache(monkeypatch, tmp_path):
         return result
 
     # Patch the lower-level _call_openai so the cache layer in call_judge runs
-    async def fake_openai(model, system, user, temperature):
-        return await counting_call("openai", model, system, user, temperature)
+    async def fake_openai(model, system, user, temperature, **kwargs):
+        return await counting_call("openai", model, system, user, temperature, **kwargs)
 
     with patch("mdk_eval.evaluators.judges.llm_clients._call_openai", side_effect=fake_openai):
-        first = llm_extractor.extract(SAMPLE_AGENT_DEF)
-        second = llm_extractor.extract(SAMPLE_AGENT_DEF)
+        first = llm_extractor.extract(SAMPLE_AGENT_DEF, mix={"standard": 3})
+        second = llm_extractor.extract(SAMPLE_AGENT_DEF, mix={"standard": 3})
 
     assert len(first) == 3
     assert len(second) == 3
     # call_judge should have used the cache on the second run; _call_openai called once
+    # (per-category caching: same category + same agent def + same model = cache hit)
     assert call_count["n"] == 1, f"expected 1 actual API call, got {call_count['n']}"
+
+
+# ----------------- 2D extract_with_topics_async path -----------------
+
+
+def test_extract_with_topics_tags_each_scenario(monkeypatch):
+    """Every scenario from extract_with_topics_async carries both
+    `category:<behavior>` and `topic:<slug>` tags."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    import asyncio
+    from mdk_eval.ingest.mix_presets import TopicCell
+
+    # Two cells: one cell per (topic, category) pair.
+    cells = [
+        TopicCell("services", "Movate Services", "standard", 1),
+        TopicCell("services", "Movate Services", "adversarial", 1),
+        TopicCell("careers", "Career & Hiring", "standard", 1),
+    ]
+    topic_meta = {
+        "services": {"name": "Movate Services", "description": "Capabilities."},
+        "careers": {"name": "Career & Hiring", "description": "Roles + applications."},
+    }
+
+    one_off = {
+        "scenarios": [{
+            "id": "x", "description": "x test", "input": {"prompt": "x"},
+            "severity": "medium", "tags": [], "forbidden_phrases": [],
+            "rubric_focus": "correctness", "constraint_quote": "x",
+        }]
+    }
+
+    async def fake_call(*_a, **_k):
+        return one_off
+
+    with patch("mdk_eval.evaluators.judges.llm_clients.call_judge", side_effect=fake_call):
+        proposed = asyncio.run(
+            llm_extractor.extract_with_topics_async(
+                SAMPLE_AGENT_DEF, cells=cells, topic_meta=topic_meta,
+            )
+        )
+
+    # 3 cells * 1 scenario per cell = 3 proposed scenarios.
+    assert len(proposed) == 3
+    # Every scenario has a `topic:<slug>` tag matching its cell.
+    for p in proposed:
+        topic_tags = [t for t in p.tags if t.startswith("topic:")]
+        assert len(topic_tags) == 1, f"expected exactly one topic tag, got {topic_tags}"
+        assert topic_tags[0] in {"topic:services", "topic:careers"}
+    # Every scenario carries the cell's behavioral category.
+    cats = {p.category for p in proposed}
+    assert cats == {"standard", "adversarial"}
+    # Topic tag distribution: services appears in 2 scenarios, careers in 1.
+    services = sum(1 for p in proposed if "topic:services" in p.tags)
+    careers = sum(1 for p in proposed if "topic:careers" in p.tags)
+    assert services == 2
+    assert careers == 1
+
+
+def test_extract_with_topics_empty_cells_returns_empty(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    import asyncio
+    proposed = asyncio.run(
+        llm_extractor.extract_with_topics_async(SAMPLE_AGENT_DEF, cells=[])
+    )
+    assert proposed == []
+
+
+def test_extract_with_topics_unknown_category_raises(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    import asyncio
+    import pytest
+    from mdk_eval.ingest.mix_presets import TopicCell
+
+    cells = [TopicCell("topic_x", "Topic X", "made_up_category", 1)]
+    with pytest.raises(ValueError, match="unknown category"):
+        asyncio.run(
+            llm_extractor.extract_with_topics_async(SAMPLE_AGENT_DEF, cells=cells)
+        )
+
+
+def test_extract_with_topics_custom_without_directive_raises(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    import asyncio
+    import pytest
+    from mdk_eval.ingest.mix_presets import TopicCell
+
+    cells = [TopicCell("topic_x", "Topic X", "custom", 1)]
+    with pytest.raises(ValueError, match="custom_directive"):
+        asyncio.run(
+            llm_extractor.extract_with_topics_async(SAMPLE_AGENT_DEF, cells=cells)
+        )
+
+
+def test_extract_with_topics_returns_empty_when_llm_unavailable(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    import asyncio
+    from mdk_eval.ingest.mix_presets import TopicCell
+
+    cells = [TopicCell("topic_x", "Topic X", "standard", 1)]
+    proposed = asyncio.run(
+        llm_extractor.extract_with_topics_async(SAMPLE_AGENT_DEF, cells=cells)
+    )
+    assert proposed == []
