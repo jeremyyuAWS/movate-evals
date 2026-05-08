@@ -312,6 +312,111 @@ def test_markdown_includes_headline_action():
     assert "**Do this first:** Force grounding citations." in md
 
 
+# ---------------------------------------------------------------- alignment with business-report
+#
+# Phase 1+2 of the Doctor / business-report alignment refactor: both endpoints
+# feed the SAME deterministic context (augmented clusters, ranked fix list,
+# top wins, recommendation text) to their LLM prompts. These tests pin that
+# the Doctor's payload includes those fields and that the priority ordering
+# matches what business-report would produce for the same inputs.
+
+
+def test_summarize_run_for_doctor_includes_alignment_fields():
+    """Phase 1: the Doctor's LLM payload must carry the shared run_context
+    fields so the system prompt can reference `ranked_fixes`, `agent_strengths`,
+    `failure_clusters_aug`, etc."""
+    from mdk_eval.insights.agent_doctor import _summarize_run_for_doctor
+    clusters = [
+        FailureCluster(
+            failure_class=FailureClass.HALLUCINATION,
+            label="Hallucination",
+            count=2,
+            severity=Severity.HIGH,
+            example_scenario_ids=["hallucination_trap"],
+            suggested_fix="cite",
+        ),
+    ]
+    report = _report(status=Readiness.PILOT_READY, score=82.0, clusters=clusters)
+    payload = _summarize_run_for_doctor(report)
+
+    # New fields are present
+    assert "failure_clusters_aug" in payload
+    assert "risks_aug" in payload
+    assert "agent_strengths" in payload
+    assert "top_losses" in payload
+    assert "ranked_fixes" in payload
+    assert "production_recommendation_text" in payload
+
+    # failure_clusters_aug carries the business-language augmentation
+    assert payload["failure_clusters_aug"][0]["business_label"].startswith(
+        "The agent makes up"
+    )
+
+    # ranked_fixes is non-empty, ordered, and references the cluster's
+    # business label (so the Doctor's prescription titles can match the
+    # exec view's what_to_fix_first 1-to-1).
+    rf = payload["ranked_fixes"]
+    assert len(rf) >= 1
+    assert rf[0]["rank"] == 1
+    assert rf[0]["issue"] == "The agent makes up information not in your knowledge base"
+
+    # agent_strengths captures the top-3 categories scoring >=75. Default
+    # _scorecard() has workflow_adherence=100, consistency=100, safety=99,
+    # so those should win. The point is just that strengths is non-empty
+    # and the highest scorer comes first.
+    assert len(payload["agent_strengths"]) > 0
+    assert payload["agent_strengths"][0]["score"] >= payload["agent_strengths"][-1]["score"]
+
+    # production_recommendation_text matches pilot_ready framing
+    assert "controlled rollout" in payload["production_recommendation_text"]
+
+
+def test_doctor_alignment_matches_business_report_priority():
+    """The Doctor's `ranked_fixes` and the business-report's
+    `what_to_fix_first` come from the same shared helper, so they must
+    produce identical ordering for the same input data. This is the
+    cross-tab consistency guarantee."""
+    from mdk_eval.insights.agent_doctor import _summarize_run_for_doctor
+    from mdk_eval.web import run_context as rc
+    clusters = [
+        FailureCluster(
+            failure_class=FailureClass.TOOL_MISUSE,
+            label="Tool misuse", count=5, severity=Severity.HIGH,
+            example_scenario_ids=["s1"], suggested_fix="x",
+        ),
+        FailureCluster(
+            failure_class=FailureClass.HALLUCINATION,
+            label="Hallucination", count=2, severity=Severity.HIGH,
+            example_scenario_ids=["s2"], suggested_fix="y",
+        ),
+    ]
+    report = _report(clusters=clusters)
+    payload = _summarize_run_for_doctor(report)
+
+    # Compute the same context independently
+    independent_ctx = rc.build_run_context(
+        scorecard=report.scorecard.model_dump(),
+        failure_clusters=payload["failure_clusters"],
+        risk_register=payload["risk_register"],
+        status=report.status.value,
+    )
+
+    # Doctor's payload's ranked_fixes equals what business-report computes
+    assert payload["ranked_fixes"] == independent_ctx["what_to_fix_first"]
+    # Tool misuse (3*5=15) outranks hallucination (3*2=6)
+    assert payload["ranked_fixes"][0]["issue"].startswith("The agent picks the wrong tool")
+
+
+def test_get_cached_narrative_returns_none_on_db_miss():
+    """The cross-feed helper must fail gracefully when the run doesn't exist
+    or DB is unavailable — Phase 2 is opportunistic, not a hard dependency."""
+    from mdk_eval.web import business_report as br
+    # No mock — _gather will raise (no DB connection in test env). The helper
+    # swallows the exception and returns None silently.
+    result = br.get_cached_narrative_for_run(99999999)
+    assert result is None
+
+
 def test_markdown_handles_no_prescriptions_gracefully():
     """A clean run shows the 'no prescriptions' message rather than blank."""
     doctor = _doctor_with_data()

@@ -30,20 +30,23 @@ from dataclasses import dataclass
 from typing import Any
 
 from . import db
+from . import run_context
 from ..evaluators.judges import cache as judge_cache
-from ..reporting.business_language import (
-    business_for_class,
-)
 
 
 log = logging.getLogger(__name__)
 
 
-# Severity priority for ordering "what to fix first" suggestions.
-_SEVERITY_RANK = {"critical": 4, "high": 3, "medium": 2, "low": 1}
-
-# Likelihood priority — risk_register entries use these.
-_LIKELIHOOD_RANK = {"high": 3, "medium": 2, "low": 1}
+# Re-exports — kept for backward compatibility with tests/callers that imported
+# these from `business_report`. New code should import from `web.run_context`
+# directly. (Phase 1 of the Doctor/business-report alignment refactor.)
+_SEVERITY_RANK = run_context.SEVERITY_RANK
+_LIKELIHOOD_RANK = run_context.LIKELIHOOD_RANK
+_compute_top_wins = run_context.compute_top_wins
+_compute_top_losses = run_context.compute_top_losses
+_compute_what_to_fix_first = run_context.compute_what_to_fix_first
+_production_recommendation_text = run_context.production_recommendation_text
+_detect_class_in_risk_text = run_context.detect_class_in_risk_text
 
 
 @dataclass
@@ -201,154 +204,14 @@ def _gather(run_pk: int) -> dict[str, Any] | None:
     }
 
 
-# ---------------------------------------------------------------- derived structures
-
-
-def _compute_top_wins(scorecard: dict[str, Any]) -> list[dict[str, Any]]:
-    """The 3 highest-scoring categories. Skip categories that scored 0 or are
-    not actually populated.
-
-    Filters out categories with score < 75 — a "win" should actually be good.
-    """
-    items = [
-        {"category": k, "score": float(v)}
-        for k, v in (scorecard or {}).items()
-        if isinstance(v, (int, float)) and v >= 75
-    ]
-    items.sort(key=lambda x: x["score"], reverse=True)
-    return items[:3]
-
-
-def _compute_top_losses(scorecard: dict[str, Any], clusters: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """The 3 weakest dimensions. Mix:
-      - Categories scoring < 75 (sorted ascending)
-      - Top failure clusters by count × severity weight
-    Returns up to 3 items, deduplicated on label.
-    """
-    out: list[dict[str, Any]] = []
-    seen_labels: set[str] = set()
-
-    # Failing categories first (they have specific scores)
-    cats = sorted(
-        ((k, float(v)) for k, v in (scorecard or {}).items()
-         if isinstance(v, (int, float)) and v < 75),
-        key=lambda kv: kv[1],
-    )
-    for k, v in cats[:3]:
-        out.append({"kind": "category", "label": k, "score": v})
-        seen_labels.add(k)
-
-    # Failure clusters by impact
-    if len(out) < 3:
-        ranked = sorted(
-            clusters,
-            key=lambda c: (
-                _SEVERITY_RANK.get((c.get("severity") or "low").lower(), 0),
-                int(c.get("count", 0)),
-            ),
-            reverse=True,
-        )
-        for c in ranked:
-            biz = business_for_class(c.get("failure_class", ""))
-            label = biz["business_label"]
-            if label in seen_labels:
-                continue
-            out.append({
-                "kind": "failure_cluster",
-                "label": label,
-                "scenarios_affected": int(c.get("count", 0)),
-                "severity": c.get("severity"),
-            })
-            seen_labels.add(label)
-            if len(out) >= 3:
-                break
-
-    return out[:3]
-
-
-def _compute_what_to_fix_first(
-    clusters: list[dict[str, Any]],
-    risks: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """Prioritized fix list. Score each cluster by:
-      leverage = severity_rank × scenarios_affected
-    Then rank risks by severity × likelihood and merge.
-
-    Returns up to 5 items so the exec view doesn't get bulleted into oblivion.
-    """
-    items: list[dict[str, Any]] = []
-
-    for c in clusters:
-        biz = business_for_class(c.get("failure_class", ""))
-        sev = (c.get("severity") or "low").lower()
-        count = int(c.get("count", 0))
-        leverage = _SEVERITY_RANK.get(sev, 0) * count
-        items.append({
-            "issue": biz["business_label"],
-            "leverage_text": f"fixes {count} affected scenario{'s' if count != 1 else ''}",
-            "leverage_score": leverage,
-            "severity": sev,
-            "fix": biz["business_fix"],
-            "kind": "failure_cluster",
-        })
-
-    for r in risks:
-        sev = (r.get("severity") or "low").lower()
-        like = (r.get("likelihood") or "low").lower()
-        leverage = _SEVERITY_RANK.get(sev, 0) * _LIKELIHOOD_RANK.get(like, 0) * 5
-        items.append({
-            "issue": r.get("business_label") or r.get("risk", ""),
-            "leverage_text": f"{sev}-severity, {like}-likelihood production risk",
-            "leverage_score": leverage,
-            "severity": sev,
-            "fix": r.get("business_mitigation") or r.get("mitigation", ""),
-            "kind": "risk",
-        })
-
-    # Dedupe on issue (a cluster + a risk can describe the same thing)
-    deduped = {}
-    for it in items:
-        key = it["issue"]
-        if key not in deduped or it["leverage_score"] > deduped[key]["leverage_score"]:
-            deduped[key] = it
-    ranked = sorted(deduped.values(), key=lambda x: x["leverage_score"], reverse=True)
-
-    return [
-        {"rank": i + 1, **{k: v for k, v in it.items() if k != "leverage_score"}}
-        for i, it in enumerate(ranked[:5])
-    ]
-
-
-def _production_recommendation_text(status: str, n_fixes: int) -> str:
-    """Generate a 1-2 sentence production-readiness paragraph from the band
-    + the number of high-leverage fixes pending. Deterministic — no LLM call.
-    """
-    if status == "production_ready":
-        return (
-            "The agent is ready for full production deployment. "
-            f"{('Minor improvements remain' if n_fixes else 'No urgent issues identified')} "
-            "but no blocking issues were found in this evaluation."
-        )
-    if status == "pilot_ready":
-        return (
-            "Recommend a controlled rollout to internal users or a small customer cohort while "
-            f"the team addresses the {n_fixes} priority issue{'s' if n_fixes != 1 else ''} below. "
-            "Re-evaluate after fixes land before broader release."
-        )
-    if status == "needs_improvement":
-        return (
-            f"Not yet ready for production. The {n_fixes} priority issue{'s' if n_fixes != 1 else ''} "
-            "below need to be resolved before piloting. "
-            "Expect another evaluation cycle is needed after the fixes."
-        )
-    return (
-        f"Significant work required before piloting. The {n_fixes} priority issue{'s' if n_fixes != 1 else ''} "
-        "represent fundamental gaps in the agent's behavior — not polish issues. "
-        "Recommend a rebuild of the affected workflows before re-evaluation."
-    )
-
-
 # ---------------------------------------------------------------- LLM narrative
+#
+# The business-language augmentation, top-wins / top-losses computation, and
+# leverage-ranked fix list now live in `mdk_eval.web.run_context` so both
+# this endpoint and `/doctor` can consume the same structures (Phase 1 of
+# the Doctor alignment refactor). The `_compute_*`, `_detect_class_*`, and
+# `_production_recommendation_text` names are re-exported at the top of
+# this file so external callers / tests don't break.
 
 
 _NARRATIVE_SYSTEM_PROMPT = """\
@@ -473,28 +336,21 @@ def generate(*, run_pk: int) -> BusinessReport:
     if data["total_scenarios"] == 0:
         raise ValueError(f"Run pk={run_pk} has no completed scenarios — cannot generate business report")
 
-    # Augment clusters + risks with business-language fields
-    clusters_aug = [
-        {**c, **{"business_label": business_for_class(c.get("failure_class", ""))["business_label"],
-                 "customer_impact": business_for_class(c.get("failure_class", ""))["customer_impact"],
-                 "business_fix": business_for_class(c.get("failure_class", ""))["business_fix"]}}
-        for c in (data["failure_clusters"] or [])
-    ]
-    risks_aug = [
-        {**r,
-         **{"business_label": business_for_class(_detect_class_in_risk_text(r.get("risk", "")))["business_label"]
-            if _detect_class_in_risk_text(r.get("risk", "")) else (r.get("risk") or ""),
-            "customer_impact": business_for_class(_detect_class_in_risk_text(r.get("risk", "")))["customer_impact"]
-            if _detect_class_in_risk_text(r.get("risk", "")) else "",
-            "business_mitigation": business_for_class(_detect_class_in_risk_text(r.get("risk", "")))["business_fix"]
-            if _detect_class_in_risk_text(r.get("risk", "")) else (r.get("mitigation") or "")}}
-        for r in (data["risk_register"] or [])
-    ]
-
-    # Derived structures
-    top_wins = _compute_top_wins(data["scorecard"])
-    top_losses = _compute_top_losses(data["scorecard"], clusters_aug)
-    fix_list = _compute_what_to_fix_first(clusters_aug, risks_aug)
+    # Augment + derive everything via the shared deterministic context
+    # builder. Doctor consumes the same outputs from the same module so
+    # both endpoints stay aligned without LLM-into-LLM chaining.
+    ctx = run_context.build_run_context(
+        scorecard=data["scorecard"],
+        failure_clusters=data["failure_clusters"],
+        risk_register=data["risk_register"],
+        status=data["status"],
+    )
+    clusters_aug = ctx["clusters_aug"]
+    risks_aug = ctx["risks_aug"]
+    top_wins = ctx["top_wins"]
+    top_losses = ctx["top_losses"]
+    fix_list = ctx["what_to_fix_first"]
+    rec_text = ctx["production_recommendation_text"]
 
     # Narrative — async wrapped
     narrative, source = asyncio.run(_llm_narrative_async(data, top_losses, fix_list))
@@ -513,8 +369,6 @@ def generate(*, run_pk: int) -> BusinessReport:
             f"{data['agent_display_name']} scored {data['overall_score']:.0f} — {status_pretty}. "
             f"{pct}% of test cases passed; no priority issues identified."
         )
-
-    rec_text = _production_recommendation_text(data["status"], len(fix_list))
 
     pass_rate = data["passing_scenarios"] / max(data["total_scenarios"], 1)
     return BusinessReport(
@@ -542,12 +396,44 @@ def generate(*, run_pk: int) -> BusinessReport:
     )
 
 
-def _detect_class_in_risk_text(risk_text: str) -> str | None:
-    """Best-effort detection of the FailureClass referenced in a risk register
-    entry. Risks read 'Recurring failure mode: <Class>' typically."""
-    from ..models import FailureClass
-    text = (risk_text or "").lower()
-    for cls in FailureClass:
-        if cls.value in text or cls.value.replace("_", " ") in text:
-            return cls.value
-    return None
+# ---------------------------------------------------------------- cross-feed helper
+#
+# Phase 2 of the Doctor alignment refactor. The Doctor calls this to pull the
+# already-generated executive narrative if it's in cache, and includes it in
+# its LLM prompt as `executive_view_summary` so the Doctor's Tier-1 stays in
+# lockstep with what the executive view says. Soft dependency — if the
+# narrative wasn't generated or its cache entry was evicted, returns None and
+# the Doctor falls back to its own narrative voice.
+
+
+def get_cached_narrative_for_run(run_pk: int) -> str | None:
+    """Return the cached executive narrative for `run_pk`, or None if absent.
+
+    Used by the Agent Doctor to align its Tier-1 executive_summary with the
+    business-report's narrative without spawning a fresh LLM call. Behavior:
+
+      - Re-runs the deterministic part of `generate()` (DB pull + run_context
+        build) so the cache key matches what `_llm_narrative_async` would have
+        used. NO LLM call. NO cache write.
+      - Returns the cached string if present, else None.
+      - Returns None silently on any error (run missing, DB down, etc.) — this
+        is a best-effort optimization, not a hard dependency.
+
+    Latency: one DB read (the `_gather` query). Negligible compared to the
+    Doctor's own LLM call.
+    """
+    try:
+        data = _gather(run_pk)
+        if data is None or data["total_scenarios"] == 0:
+            return None
+        cache_key = _narrative_cache_key(data["run_pk"], data)
+        cached = judge_cache.get(
+            "anthropic", "claude-haiku-4-5-20251001",
+            _NARRATIVE_SYSTEM_PROMPT, cache_key, 0.0,
+        )
+        if not cached or "narrative" not in cached:
+            return None
+        return str(cached["narrative"]).strip() or None
+    except Exception as e:
+        log.debug(f"get_cached_narrative_for_run({run_pk}) miss: {type(e).__name__}: {e}")
+        return None

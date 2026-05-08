@@ -111,6 +111,12 @@ Input shape — the user message gives you a JSON object with these blocks:
 - `managed_agents_breakdown[]` — for MANAGER agents (those with sub-agents), per-sub-agent scoring derived from topic matches. When this is non-empty, your executive_summary MUST name which sub-agent is the bottleneck. Example: "The bottleneck is the Validator sub-agent at 56 — the manager itself is fine; OCR Agent at 89 is fine; Validator's confidence calibration is dragging the system score." If empty, the agent is single-task and you skip this framing.
 - `recent_runs_trend[]` — last 5 runs (most recent first). Use this in ONE SHORT SENTENCE in the executive_summary — "score dropped 4 points from last week" or "third consecutive run at this level" or "first run on this agent — no trend yet." Don't belabor; one sentence max.
 - `risk_register[]` — high-level risk items if present.
+- `failure_clusters_aug[]` — same clusters as `failure_clusters` but with business-language fields merged in (`business_label`, `customer_impact`, `business_fix`). Use the `business_label` text VERBATIM in prescription titles when the prescription targets the corresponding cluster — this keeps the engineering view aligned with what the executive view shows for the same issue.
+- `risks_aug[]` — same risks as `risk_register` but with `business_label`, `customer_impact`, `business_mitigation`. Use the `business_label` verbatim when citing a risk in a prescription.
+- `agent_strengths[]` — categories scoring ≥75 (≤3 entries, descending). DO NOT recommend changes to these areas unless directly required by a fix elsewhere. Tier-1 should acknowledge them in passing ("strong on safety and ux_tone") so the report doesn't read as scorched-earth.
+- `ranked_fixes[]` — the canonical priority order, computed deterministically from severity × count (clusters) and severity × likelihood (risks), deduplicated against overlap. Your `prescriptions[]` MUST be ordered to match this list. If `ranked_fixes` has 3 items, your top 3 prescriptions correspond 1-to-1 in the same order. The `issue` field of each ranked_fix is the `business_label` you should quote in the prescription title.
+- `production_recommendation_text` — a 1-2 sentence templated paragraph that the executive view shows verbatim. Use the same framing in your `executive_summary` (e.g., if it says "controlled rollout to internal users," your summary shouldn't say "ready for full production").
+- `executive_view_summary` (optional) — when present, this is the exact narrative paragraph the executive view is rendering for THIS run. Your `executive_summary` MUST say the same thing in engineering voice: same status framing, same priority emphasis, same recommendation. Translate audience (eng vs. exec), not conclusion.
 
 Required output JSON shape (no prose outside the JSON object):
 {
@@ -139,10 +145,13 @@ Required output JSON shape (no prose outside the JSON object):
 
 Rules:
 - Cite scenarios + findings from the actual data. Don't invent issues that aren't in the data.
-- Up to 3 prescriptions. Rank by leverage (severity × scenarios_affected).
+- Up to 3 prescriptions. Order them to match `ranked_fixes[]` exactly — the priority list is computed deterministically and is shared with the executive view, so the engineer view and the exec view show the same #1, #2, #3.
+- Use the `business_label` from `ranked_fixes[]` / `failure_clusters_aug[]` / `risks_aug[]` VERBATIM as the prescription `title`. The exec view shows the same string. Don't paraphrase.
 - Up to 5 specific_changes. Engineer-actionable; no vague "improve quality".
 - When `agent_response_excerpt` or `judge_rationales` is non-empty for a cited scenario, INCLUDE a short quoted fragment in the diagnosis. This is the highest-signal data we have.
 - When `managed_agents_breakdown` is non-empty, the headline_action MUST target the bottleneck sub-agent (e.g., "Investigate the Validator sub-agent's mismatch handling first") — manager-level fixes are second-order.
+- Do NOT recommend specific_changes to areas in `agent_strengths[]` unless directly required by a fix in your prescriptions. Strengths stay; weaknesses get fixed.
+- When `executive_view_summary` is present, your `executive_summary` MUST agree with it on status framing and priority. Different audience (engineer vs. delivery manager), same conclusion.
 - Confidence-tag conservatively: 'high' only when ≥3 scenarios point to the same failure mode.
 - If the run has no failures (overall_score >= 90 and pass_rate >= 0.95), say so plainly in the executive_summary and produce an empty prescriptions / specific_changes list.
 """
@@ -296,20 +305,42 @@ def _summarize_run_for_doctor(report: RunReport) -> dict[str, Any]:
         "mitigation": r.mitigation,
     } for r in (report.risk_register or [])]
 
+    # Augment + derive shared deterministic context (Phase 1 of the
+    # Doctor / business-report alignment refactor). Both endpoints feed
+    # the SAME augmented clusters, ranked fix list, and top wins to their
+    # respective LLM prompts so outputs naturally align without
+    # LLM-into-LLM chaining.
+    from ..web import run_context as _ctx
+    scorecard_dict = report.scorecard.model_dump()
+    status_str = report.status.value
+    ctx = _ctx.build_run_context(
+        scorecard=scorecard_dict,
+        failure_clusters=clusters,
+        risk_register=risks,
+        status=status_str,
+    )
+
     return {
         "run_id": report.manifest.run_id,
         "overall_score": float(report.overall_score),
         "overall_score_ci": [report.overall_score_ci_lo, report.overall_score_ci_hi]
             if report.overall_score_ci_lo or report.overall_score_ci_hi else None,
-        "status": report.status.value,
+        "status": status_str,
         "passing_scenarios": sum(1 for a in report.scenario_aggregates if a.pass_rate >= 0.8),
         "total_scenarios": len(report.scenario_aggregates),
-        "scorecard": report.scorecard.model_dump(),
+        "scorecard": scorecard_dict,
         "weakest_scenarios": weak_payload,
         "failure_clusters": clusters,
         "risk_register": risks,
         "key_findings": (report.key_findings or [])[:5],
         "recommendation": report.recommendation,
+        # NEW — shared deterministic context (Phase 1 + 2 of Doctor alignment)
+        "failure_clusters_aug": ctx["clusters_aug"],
+        "risks_aug": ctx["risks_aug"],
+        "agent_strengths": ctx["top_wins"],
+        "top_losses": ctx["top_losses"],
+        "ranked_fixes": ctx["what_to_fix_first"],
+        "production_recommendation_text": ctx["production_recommendation_text"],
     }
 
 
@@ -978,6 +1009,32 @@ async def generate_from_db_async(
                     "is_current": int(rr[0]) == run_pk_id,
                 })
 
+    # Augment + derive the shared deterministic context (Phase 1 of the
+    # Doctor / business-report alignment refactor). Both endpoints feed the
+    # SAME augmented clusters, ranked fix list, top wins, and recommendation
+    # text into their LLM prompts so engineering view and executive view
+    # naturally agree on priority + framing.
+    from ..web import run_context as _ctx
+    ctx = _ctx.build_run_context(
+        scorecard=scorecard or {},
+        failure_clusters=clusters,
+        risk_register=risks,
+        status=status_val or "not_ready",
+    )
+
+    # Phase 2: opportunistic cross-feed of the executive view's narrative
+    # paragraph. Soft dependency — if the business-report hasn't been
+    # generated for this run (or its cache entry was evicted), this is None
+    # and the Doctor falls back to its own narrative voice. No latency
+    # penalty: the lookup is one DB read for the gather pass + one cache
+    # read; both are fast and free.
+    executive_view_summary: str | None = None
+    try:
+        from ..web import business_report as _br_mod_xfeed
+        executive_view_summary = _br_mod_xfeed.get_cached_narrative_for_run(run_pk_id)
+    except Exception as e:  # pragma: no cover — defensive
+        log.debug(f"agent_doctor cross-feed lookup failed: {type(e).__name__}: {e}")
+
     # Build the enriched payload shape — superset of `_summarize_run_for_doctor`
     payload = {
         "run_id": run_id_str,
@@ -992,14 +1049,31 @@ async def generate_from_db_async(
         "risk_register": risks,
         "key_findings": [],
         "recommendation": "",
-        # NEW enrichments — see system prompt for how the LLM uses these
+        # Enrichments — see system prompt for how the LLM uses these
         "topic_breakdown": topic_payload,
         "managed_agents_breakdown": managed_agents_payload,
         "recent_runs_trend": recent_runs_payload,
+        # Phase 1+2: shared deterministic context (alignment with executive view)
+        "failure_clusters_aug": ctx["clusters_aug"],
+        "risks_aug": ctx["risks_aug"],
+        "agent_strengths": ctx["top_wins"],
+        "top_losses": ctx["top_losses"],
+        "ranked_fixes": ctx["what_to_fix_first"],
+        "production_recommendation_text": ctx["production_recommendation_text"],
     }
+    # Phase 2: cross-fed narrative (only present when business-report was
+    # generated for this run AND its cache hit). Prompt instructs the LLM
+    # to align Tier-1 with this text when present.
+    if executive_view_summary:
+        payload["executive_view_summary"] = executive_view_summary
 
-    # Cache by content fingerprint (mirrors `_cache_key`)
-    cache_body = {
+    # Cache by content fingerprint (mirrors `_cache_key`).
+    # Cross-fed narrative is included in the fingerprint when present so
+    # that a subsequent business-report regeneration → narrative change
+    # invalidates this doctor cache entry and forces a fresh aligned
+    # generation. Absent narrative → key matches the historical shape so
+    # existing cache entries from before Phase 2 stay valid.
+    cache_body: dict[str, Any] = {
         "run_id": run_id_str,
         "overall_score": payload["overall_score"],
         "status": payload["status"],
@@ -1008,6 +1082,11 @@ async def generate_from_db_async(
         "scenario_count": payload["total_scenarios"],
         "prompt_sha": _prompt_sha(),
     }
+    if executive_view_summary:
+        # Hash of the narrative — keeps the cache key bounded in size.
+        cache_body["executive_view_summary_sha"] = hashlib.sha256(
+            executive_view_summary.encode("utf-8")
+        ).hexdigest()
     cache_key = hashlib.sha256(json.dumps(cache_body, sort_keys=True, default=str).encode()).hexdigest()
 
     # Cache lookup — respect the regenerate flag. Use get_with_metadata so we
